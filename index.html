@@ -1,0 +1,3003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Tunnel · Alpha1</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #000; overflow: hidden; font-family: "Rajdhani", "Orbitron", "Share Tech Mono", monospace;
+  touch-action: none; color: #eaffff;
+}
+canvas { display: block; }
+#ui {
+  position: fixed; top: 16px; left: 16px; width: auto; pointer-events: none;
+  z-index: 10; color: #eaffff; padding: 14px 16px;
+  min-width: 170px;
+  background: linear-gradient(135deg, rgba(0,20,28,0.7), rgba(30,0,45,0.38));
+  border: 1px solid rgba(0,255,220,0.34);
+  box-shadow: 0 0 24px rgba(0,255,220,0.16), inset 0 0 18px rgba(255,255,255,0.04);
+  backdrop-filter: blur(7px);
+  border-radius: 10px;
+}
+#level {
+  font-size: 13px; opacity: 0.9; margin-bottom: 7px; color: #ffd86b;
+  letter-spacing: 2px; text-transform: uppercase;
+}
+#score {
+  font-size: 30px; line-height: 1; color: #f6ffff; letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(0,255,220,0.7), 0 0 24px rgba(170,68,255,0.35);
+}
+#score::before { content: "SCORE "; font-size: 11px; color: rgba(0,255,220,0.72); letter-spacing: 2px; }
+#lives {
+  font-size: 20px; margin-top: 9px; color: #ff3366; letter-spacing: 5px;
+  text-shadow: 0 0 10px rgba(255,40,90,0.9), 0 0 24px rgba(255,0,120,0.35);
+}
+#floating-text {
+  position: fixed; left: 50%; top: 34%; transform: translate(-50%, -50%);
+  z-index: 30; pointer-events: none; font-family: inherit; font-size: 26px;
+  color: #fff; opacity: 0; text-align: center; letter-spacing: 2px;
+  padding: 10px 18px; border-radius: 10px;
+  background: rgba(0, 18, 28, 0.68);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0 28px rgba(0,255,220,0.25), inset 0 0 18px rgba(255,255,255,0.05);
+  backdrop-filter: blur(6px);
+  text-shadow: 0 0 18px rgba(255,255,255,0.9);
+}
+#gameover {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; text-align: center; font-size: 32px; display: none; z-index: 20;
+  text-shadow: 0 0 20px rgba(255,215,0,0.8);
+}
+#gameover span { color: #ffd700; }
+#gameover p { font-size: 16px; margin-top: 16px; opacity: 0.7; }
+#cyber-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 6;
+  background:
+    repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(0, 255, 200, 0.045) 3px, rgba(0, 255, 200, 0.045) 4px),
+    repeating-linear-gradient(100deg, rgba(255, 0, 170, 0.04) 0px, transparent 1px, transparent 6px),
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(120, 0, 255, 0.12), transparent 55%);
+  mix-blend-mode: screen;
+  opacity: 0.24;
+  animation: cyberScan 3.2s linear infinite;
+}
+@keyframes cyberScan {
+  from { transform: translateY(0); }
+  to { transform: translateY(6px); }
+}
+#ui { text-shadow: 0 0 12px rgba(0, 255, 220, 0.35); animation: uiPulse 2.4s ease-in-out infinite; }
+@keyframes uiPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
+#dev-panel {
+  position: fixed; bottom: 12px; right: 12px; z-index: 100;
+  display: flex; gap: 6px; align-items: center;
+  pointer-events: auto;
+}
+#dev-panel button {
+  background: rgba(255,255,255,0.08); color: #0ff; border: 1px solid rgba(0,255,220,0.4);
+  font-family: monospace; font-size: 13px; padding: 4px 10px; cursor: pointer;
+  border-radius: 3px; transition: background 0.15s;
+}
+#dev-panel button:hover { background: rgba(0,255,220,0.18); }
+#dev-toggle {
+  position: fixed; bottom: 12px; right: 12px; z-index: 101;
+  background: rgba(255,255,255,0.06); color: #0ff; border: 1px solid rgba(0,255,220,0.3);
+  font-family: monospace; font-size: 11px; padding: 3px 8px; cursor: pointer;
+  border-radius: 3px;
+}
+#void-ui {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 10; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 12px 16px 14px;
+  background: rgba(0, 10, 18, 0.64);
+  border: 1px solid rgba(0,255,220,0.28);
+  border-radius: 14px;
+  box-shadow: 0 0 26px rgba(0,255,220,0.15), inset 0 0 22px rgba(170,68,255,0.08);
+  backdrop-filter: blur(8px);
+}
+#void-label {
+  font-family: inherit; font-size: 12px; letter-spacing: 5px; color: rgba(0,255,220,0.86);
+  text-shadow: 0 0 10px rgba(0,255,220,0.8);
+}
+#void-bar-wrap {
+  width: min(340px, 70vw); height: 14px; background: rgba(0,255,220,0.09);
+  border: 1px solid rgba(0,255,220,0.32); border-radius: 999px; overflow: hidden;
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.65), 0 0 18px rgba(0,255,220,0.12);
+}
+#void-bar {
+  height: 100%; width: 0%; background: linear-gradient(90deg, #00ffcc, #aa44ff);
+  transition: width 0.15s ease; border-radius: 999px;
+  box-shadow: 0 0 18px rgba(0,255,220,0.75), 0 0 30px rgba(170,68,255,0.4);
+}
+#void-charged-hint {
+  font-family: monospace; font-size: 10px; color: #fff;
+  opacity: 0; letter-spacing: 2px;
+  text-shadow: 0 0 12px #fff;
+  transition: opacity 0.3s;
+}
+#guide-overlay {
+  position: fixed; inset: 0; z-index: 110; display: none; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0.45), rgba(0,0,0,0.82));
+  pointer-events: auto; backdrop-filter: blur(2px);
+}
+#guide-overlay.show { display: flex; }
+#guide-overlay.hole-open {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 22vmin, rgba(0,0,0,0.22) 28vmin, rgba(0,0,0,0.82) 100%);
+}
+#guide-card {
+  position: relative;
+  z-index: 113;
+  max-width: min(560px, 86vw); padding: 24px 28px;
+  color: #efffff; text-align: center;
+  background: linear-gradient(135deg, rgba(0,24,32,0.86), rgba(40,0,54,0.72));
+  border: 1px solid rgba(0,255,220,0.42);
+  border-radius: 16px;
+  box-shadow: 0 0 44px rgba(0,255,220,0.22), inset 0 0 28px rgba(255,255,255,0.06);
+}
+#guide-card.guide-focus {
+  border-color: rgba(255,255,255,0.78);
+  box-shadow: 0 0 52px rgba(0,255,220,0.55), 0 0 90px rgba(170,68,255,0.25), inset 0 0 34px rgba(255,255,255,0.1);
+}
+#guide-card.guide-focus #guide-body {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(0,255,220,0.95), 0 0 32px rgba(170,68,255,0.65);
+  font-weight: 700;
+}
+#guide-title { font-size: 26px; letter-spacing: 2px; margin-bottom: 12px; color: #fff; text-shadow: 0 0 16px rgba(255,255,255,0.75); }
+#guide-body { font-size: 18px; line-height: 1.55; color: rgba(234,255,255,0.9); }
+#guide-keys { display: grid; grid-template-columns: repeat(3, 42px); gap: 6px; justify-content: center; margin-top: 18px; }
+.keycap { border: 1px solid rgba(0,255,220,0.45); border-radius: 8px; padding: 8px 0; background: rgba(255,255,255,0.07); box-shadow: inset 0 0 12px rgba(0,255,220,0.12); }
+.keycap.blank { visibility: hidden; }
+#guide-hint { margin-top: 16px; font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.58); }
+#void-ui.guide-focus, #void-ui.void-full {
+  z-index: 112;
+  box-shadow: 0 0 42px rgba(0,255,220,0.9), 0 0 90px rgba(170,68,255,0.35), inset 0 0 28px rgba(255,255,255,0.08);
+}
+#void-ui.void-full {
+  animation: voidFullPulse 0.42s ease-in-out infinite alternate;
+  border-width: 3px;
+  border-color: rgba(255,255,255,0.86);
+}
+@keyframes voidFullPulse {
+  from { filter: saturate(1.2) brightness(1.0); transform: translateX(-50%) scale(1); }
+  to { filter: saturate(2.3) brightness(1.35); transform: translateX(-50%) scale(1.035); }
+}
+#bestscore-line { font-size: 18px; margin-top: 10px; color: #66ffff; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div id="cyber-overlay" aria-hidden="true"></div>
+<div id="ui"><div id="level">Lv.1</div><div id="score">0</div><div id="lives">♥♥♥</div></div>
+<div id="floating-text"></div>
+<div id="gameover">GAME OVER<br>Score: <span id="finalscore">0</span><div id="bestscore-line">Best: <span id="bestscore">0</span></div><p>Press SPACE to restart</p></div>
+<div id="void-ui">
+  <div id="void-label">Entropy Bar</div>
+  <div id="void-bar-wrap"><div id="void-bar"></div></div>
+  <div id="void-charged-hint">[ SPACE ]</div>
+</div>
+<div id="guide-overlay">
+  <div id="guide-card">
+    <div id="guide-title">Avoid White Cubes!</div>
+    <div id="guide-body"></div>
+    <div id="guide-keys">
+      <div class="keycap blank"></div><div class="keycap">↑</div><div class="keycap blank"></div>
+      <div class="keycap">←</div><div class="keycap">↓</div><div class="keycap">→</div>
+    </div>
+    <div id="guide-hint">PRESS ANY DIRECTION TO CONTINUE</div>
+  </div>
+</div>
+<button id="dev-toggle" onclick="document.getElementById('dev-panel').style.display=document.getElementById('dev-panel').style.display==='none'?'flex':'none'; this.style.display='none';">DEV</button>
+<div id="dev-panel" style="display:none;"></div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/index.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { gsap } from 'gsap';
+
+const GAME_VERSION = 'Alpha1';
+if (typeof globalThis !== 'undefined') {
+  globalThis.GRID_TUNNEL_VERSION = GAME_VERSION;
+}
+
+// ── Constants ──
+const CELL = 1;
+const TUNNEL_HALF = 3;
+const NEAR_Z = 1;                // near mouth of tunnel
+const MAX_DEPTH = 22;            // tunnel length / wrap（方塊多時須較長）
+const FADE_START = 17;           // start fading at this depth
+const ROLL_SPEED = 3.0 * 1.25 * 1.25;
+/** 同一 (牆,lane) 上相鄰兩顆沿深度的間距（世界深度單位） */
+const MIN_DEPTH_GAP = 1;
+const MAX_DEPTH_GAP = 5;
+const PHYS_STEP = 1 / 120;       // 固定子步進，滾動更連續、減少頓挫
+/** 判定周長上每步一格（與 CELL 同單位）；格點為半整數，與六軌道中心重合；僅 keydown 離散步進 */
+const PLAYER_GRID_STEP = CELL;
+const CUBE_EDGE = CELL * 0.95;
+// 原碰撞面 z=-2，再向隧道內（更負 z）移 3 排，每排約 1
+const PLAYER_Z = -5;
+// 與白方塊在碰撞面上相同世界邊長（透視下會比在近處時看起來更小）
+const PLAYER_CUBE_SIZE = CUBE_EDGE;
+/** 白方塊完全過判定面後，再經過此深度（與 CELL 同單位）內滾動淡出 */
+const PAST_LINE_FADE_DEPTH = 3 * CELL;
+// 與四面牆六軌道中心對齊（軌心 x/y = ±2.5, ±1.5, …，間距 1）；周長半寬 = TUNNEL_HALF - 0.5
+const PLAYER_XY_LIMIT = TUNNEL_HALF - 0.5;
+const PERIM_EDGE_EPS = 0.07;
+
+// ── 黑洞系統常數 ──
+const HOLE_MAX = 30;           // 累積 30 個方塊滾入即達極值
+const HOLE_REGION = 2;         // 中央 ±2 範圍（4×4）
+const RAINBOW_COUNT_RANGE = [22, 26];
+const EXPLODE_DURATION = 0.55; // 爆炸動畫持續秒數
+
+function snapToJudgmentPerimeter(px, py, L) {
+  const c1 = { x: Math.max(-L, Math.min(L, px)), y: -L };
+  const c2 = { x: Math.max(-L, Math.min(L, px)), y: L };
+  const c3 = { x: -L, y: Math.max(-L, Math.min(L, py)) };
+  const c4 = { x: L, y: Math.max(-L, Math.min(L, py)) };
+  let best = c1;
+  let bd = (px - c1.x) ** 2 + (py - c1.y) ** 2;
+  for (const c of [c2, c3, c4]) {
+    const d = (px - c.x) ** 2 + (py - c.y) ** 2;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
+/** 依目前貼邊過濾本幀位移：貼左僅 dy、貼下僅 dx；角落禁止同時往內對角 */
+function filterJudgmentPerimeterInput(px, py, dx, dy, L, eps) {
+  const onL = px <= -L + eps;
+  const onR = px >= L - eps;
+  const onB = py <= -L + eps;
+  const onT = py >= L - eps;
+
+  let ndx = dx;
+  let ndy = dy;
+
+  if (onB && onL) {
+    if (ndx < 0) ndx = 0;
+    if (ndy < 0) ndy = 0;
+    if (ndx !== 0 && ndy !== 0) {
+      if (Math.abs(ndx) >= Math.abs(ndy)) ndy = 0;
+      else ndx = 0;
+    }
+    return { dx: ndx, dy: ndy };
+  }
+  if (onB && onR) {
+    if (ndx > 0) ndx = 0;
+    if (ndy < 0) ndy = 0;
+    if (ndx !== 0 && ndy !== 0) {
+      if (Math.abs(ndx) >= Math.abs(ndy)) ndy = 0;
+      else ndx = 0;
+    }
+    return { dx: ndx, dy: ndy };
+  }
+  if (onT && onL) {
+    if (ndx < 0) ndx = 0;
+    if (ndy > 0) ndy = 0;
+    if (ndx !== 0 && ndy !== 0) {
+      if (Math.abs(ndx) >= Math.abs(ndy)) ndy = 0;
+      else ndx = 0;
+    }
+    return { dx: ndx, dy: ndy };
+  }
+  if (onT && onR) {
+    if (ndx > 0) ndx = 0;
+    if (ndy > 0) ndy = 0;
+    if (ndx !== 0 && ndy !== 0) {
+      if (Math.abs(ndx) >= Math.abs(ndy)) ndy = 0;
+      else ndx = 0;
+    }
+    return { dx: ndx, dy: ndy };
+  }
+  if (onB) return { dx: ndx, dy: 0 };
+  if (onT) return { dx: ndx, dy: 0 };
+  if (onL) return { dx: 0, dy: ndy };
+  if (onR) return { dx: 0, dy: ndy };
+  return { dx: 0, dy: 0 };
+}
+
+function onLaneHalfGrid(v) {
+  const k = v * 2;
+  return Math.abs(k - Math.round(k)) < 1e-5;
+}
+
+function snapCoordToHalfGrid(v) {
+  return Math.round(v * 2) / 2;
+}
+
+/** 是否在判定周長的離散格點上（半整數網格、步長 1，每邊 6 格對應六軌道） */
+function onDiscreteJudgmentPerimeter(x, y, L) {
+  const tol = 1e-5;
+  if (Math.abs(x) > L + tol || Math.abs(y) > L + tol) return false;
+  if (!onLaneHalfGrid(x) || !onLaneHalfGrid(y)) return false;
+  const onE = (a) => Math.abs(Math.abs(a) - L) < tol;
+  return onE(x) || onE(y);
+}
+
+/** 沿周長移動恰好一格；依 filter 轉角規則 */
+function discreteStepAlongEdge(px, py, sdx, sdy, L, eps) {
+  const f = filterJudgmentPerimeterInput(px, py, sdx * 1024, sdy * 1024, L, eps);
+  if (Math.abs(f.dx) < 1e-12 && Math.abs(f.dy) < 1e-12) return null;
+  let nx = px;
+  let ny = py;
+  if (Math.abs(f.dx) > 1e-12) nx += Math.sign(f.dx) * PLAYER_GRID_STEP;
+  if (Math.abs(f.dy) > 1e-12) ny += Math.sign(f.dy) * PLAYER_GRID_STEP;
+  if (!onDiscreteJudgmentPerimeter(nx, ny, L)) return null;
+  return { x: snapCoordToHalfGrid(nx), y: snapCoordToHalfGrid(ny) };
+}
+
+function playerSpawnOnJudgmentEdge() {
+  const L = PLAYER_XY_LIMIT;
+  return { x: -L, y: -0.5 };
+}
+
+// ── Renderer / Scene / Camera ──
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 2);
+camera.lookAt(0, 0, -10);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Materials ──
+const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
+const collisionRingMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+const frameMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
+const cubeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+const cubeMatFade = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true });
+const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+/** 與白方塊同結構的線框+點陣；不寫深度，讓白方塊（後繪、寫深度）在重疊處必定蓋過玩家 */
+const playerWireMat = new THREE.MeshBasicMaterial({
+  color: 0xffd700,
+  wireframe: true,
+  transparent: false,
+  depthWrite: false,
+});
+const playerDotMat = new THREE.MeshBasicMaterial({
+  color: 0xffd700,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.4,
+  depthWrite: false,
+});
+
+/** 紅色慢速方塊材質 */
+const redWireMat = new THREE.MeshBasicMaterial({
+  color: 0xff2222,
+  wireframe: true,
+  transparent: true,
+  depthWrite: false,
+});
+const redDotMat = new THREE.MeshBasicMaterial({
+  color: 0xff2222,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.4,
+  depthWrite: false,
+});
+
+// 滾動軸（共用向量，避免每幀 new）
+const ROLL_AXIS = {
+  bottom: new THREE.Vector3(-1, 0, 0),
+  top: new THREE.Vector3(1, 0, 0),
+  left: new THREE.Vector3(0, 1, 0),
+  right: new THREE.Vector3(0, -1, 0),
+};
+
+// ── Stars ──
+const starGeo = new THREE.BufferGeometry();
+const starCount = 2000;
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  starPos[i * 3]     = (Math.random() - 0.5) * 100;
+  starPos[i * 3 + 1] = (Math.random() - 0.5) * 100;
+  starPos[i * 3 + 2] = -Math.random() * 100;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({
+  color: 0xaaccff,
+  size: 0.12,
+  transparent: true,
+  opacity: 0.68,
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ── 黑洞視覺：4×4 中央區域 ──
+// 邊框：4 條線圍出 ±HOLE_REGION 的矩形，位於判定面 z=PLAYER_Z
+const holeFrameMat = new THREE.LineBasicMaterial({
+  color: 0x00ffcc, transparent: true, opacity: 0.45, depthWrite: false,
+});
+{
+  const r = HOLE_REGION;
+  const z = PLAYER_Z;
+  const hfPts = [
+    new THREE.Vector3(-r,-r,z), new THREE.Vector3(r,-r,z),
+    new THREE.Vector3(r,r,z),  new THREE.Vector3(-r,r,z),
+    new THREE.Vector3(-r,-r,z),
+  ];
+  const holeFrameLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hfPts), holeFrameMat);
+  holeFrameLine.renderOrder = 2;
+  scene.add(holeFrameLine);
+}
+
+// 底層 GLSL 流體煙霧光暈：高透明，不遮擋滾向深處的立方體
+const holeFluidUniforms = {
+  uTime: { value: 0 },
+  uCharge: { value: 0 },
+  uBurst: { value: 0 },
+  uOpacity: { value: 0 },
+  uPaletteA: { value: new THREE.Color(0x00ffee) },
+  uPaletteB: { value: new THREE.Color(0x1133ff) },
+  uPaletteC: { value: new THREE.Color(0x00ff55) },
+  uPaletteD: { value: new THREE.Color(0xff1188) },
+  uFlowSeed: { value: new THREE.Vector4(0.42, 1.0, 0.35, 0.7) },
+  uInput: { value: new THREE.Vector2(0, 0) },
+};
+const holePlaneMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending,
+  uniforms: holeFluidUniforms,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    precision highp float;
+    varying vec2 vUv;
+    uniform float uTime;
+    uniform float uCharge;
+    uniform float uBurst;
+    uniform float uOpacity;
+    uniform vec3 uPaletteA;
+    uniform vec3 uPaletteB;
+    uniform vec3 uPaletteC;
+    uniform vec3 uPaletteD;
+    uniform vec4 uFlowSeed;
+    uniform vec2 uInput;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(
+        mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+        u.y
+      );
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 5; i++) {
+        v += noise(p) * a;
+        p = mat2(1.6, -1.2, 1.2, 1.6) * p + 0.17;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 p = vUv * 2.0 - 1.0;
+      float r = length(p);
+      vec2 inputDir = normalize(uInput + vec2(0.0001));
+      float inputMag = clamp(length(uInput), 0.0, 1.8);
+      vec2 guided = uInput * (0.55 + uCharge * 0.48);
+      float mode = floor(uFlowSeed.w * 4.0);
+      float spinDir = mix(-1.0, 1.0, step(0.5, uFlowSeed.x));
+      float inputAngle = atan(inputDir.y, inputDir.x);
+      float inputSpin = inputMag * sin(atan(p.y, p.x) - inputAngle + uTime * 1.4);
+      float swirl = atan(p.y + guided.y, p.x + guided.x)
+        + spinDir * uTime * (0.35 + uFlowSeed.y * 0.55 + uCharge * 1.15)
+        + inputSpin * (1.6 + uCharge * 0.6);
+      vec2 inputTangent = vec2(-inputDir.y, inputDir.x) * inputMag * (0.95 + uCharge * 0.55);
+      vec2 spiralFlow = vec2(cos(swirl), sin(swirl)) * (0.28 + uFlowSeed.z * 0.52 + uCharge * 0.68 + inputMag * 0.55);
+      vec2 waveFlow = vec2(
+        sin((p.y + guided.y) * (3.5 + uFlowSeed.y * 5.0) + uTime * (0.5 + uFlowSeed.z)),
+        cos((p.x + guided.x) * (4.0 + uFlowSeed.z * 4.5) - uTime * (0.45 + uFlowSeed.y))
+      ) * (0.18 + uCharge * 0.34);
+      vec2 diagonalFlow = normalize(vec2(0.35 + uFlowSeed.x, 0.65 + uFlowSeed.z)) * (sin(dot(p, vec2(2.5, -1.8)) + uTime) * 0.38);
+      vec2 flow = spiralFlow;
+      flow = mix(flow, waveFlow, step(1.0, mode) * (1.0 - step(2.0, mode)));
+      flow = mix(flow, diagonalFlow, step(2.0, mode) * (1.0 - step(3.0, mode)));
+      flow += guided * 1.4 + inputTangent;
+
+      float n1 = fbm(p * (2.2 + uFlowSeed.y * 1.8 + uCharge * 4.8) + flow + vec2(uTime * (0.07 + uFlowSeed.x * 0.08), -uTime * (0.05 + uFlowSeed.z * 0.08)));
+      float n2 = fbm(p * (4.8 + uFlowSeed.z * 4.2 + uCharge * 3.0) - flow * (1.8 + uFlowSeed.y) + uTime * (0.1 + uFlowSeed.x * 0.16));
+      float n3 = fbm(p * (8.0 + uFlowSeed.y * 6.0) + vec2(sin(uTime * (0.17 + uFlowSeed.x * 0.14)), cos(uTime * (0.13 + uFlowSeed.z * 0.18))) * 1.2 + guided * 1.7);
+      float vortex = smoothstep(1.38, 0.03, r) * (0.78 + 0.92 * n1);
+      float smoke = smoothstep(0.03, 0.66, n1 * 0.72 + n2 * 0.42 + n3 * 0.22);
+      float burst = uBurst * smoothstep(0.05, 1.2, r) * (1.0 - smoothstep(1.0, 1.55, r));
+
+      vec3 color = mix(uPaletteA, uPaletteB, smoothstep(0.0, 0.58, n1));
+      color = mix(color, uPaletteC, smoothstep(0.25, 0.78, sin(uTime * 0.95 + p.y * 6.5 + n2 * 2.0 + uFlowSeed.x * 6.2831) * 0.5 + 0.5));
+      color = mix(color, uPaletteD, smoothstep(0.22, 0.95, n2 + uCharge * 0.35));
+      color = mix(color, uPaletteA + uPaletteC * 0.45, smoothstep(0.78, 1.0, uCharge) * smoothstep(0.58, 0.96, n3));
+      color *= 1.15 + uCharge * 1.65;
+      color += burst * vec3(1.6, 0.7, 0.12);
+
+      float alpha = (vortex * smoke * (0.42 + uCharge * 0.92) + burst * 0.72) * uOpacity;
+      alpha *= 1.0 - smoothstep(1.15, 1.55, r);
+      alpha = clamp(alpha, 0.0, 0.96);
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+});
+const holePlaneGeo = new THREE.PlaneGeometry(HOLE_REGION * 2, HOLE_REGION * 2);
+const holePlaneMesh = new THREE.Mesh(holePlaneGeo, holePlaneMat);
+holePlaneMesh.position.set(0, 0, PLAYER_Z);
+holePlaneMesh.renderOrder = 1;
+scene.add(holePlaneMesh);
+
+// 滿值時的粗邊框/整體閃動層（4 條半透明矩形邊）
+const holeThickFrameMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+});
+const holeThickFrameGroup = new THREE.Group();
+{
+  const r = HOLE_REGION;
+  const w = 0.08;
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(r * 2 + w, w), holeThickFrameMat);
+  top.position.set(0, r, PLAYER_Z + 0.025);
+  const bottom = new THREE.Mesh(new THREE.PlaneGeometry(r * 2 + w, w), holeThickFrameMat);
+  bottom.position.set(0, -r, PLAYER_Z + 0.025);
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(w, r * 2 + w), holeThickFrameMat);
+  left.position.set(-r, 0, PLAYER_Z + 0.025);
+  const right = new THREE.Mesh(new THREE.PlaneGeometry(w, r * 2 + w), holeThickFrameMat);
+  right.position.set(r, 0, PLAYER_Z + 0.025);
+  holeThickFrameGroup.add(top, bottom, left, right);
+  holeThickFrameGroup.renderOrder = 5;
+  scene.add(holeThickFrameGroup);
+}
+
+// 粒子層：300 個粒子，在 z=PLAYER_Z 前方 ±0.5 深度隨機漂浮
+const HOLE_PARTICLE_COUNT = 300;
+const holePtPositions = new Float32Array(HOLE_PARTICLE_COUNT * 3);
+const holePtVelocities = new Float32Array(HOLE_PARTICLE_COUNT * 3); // 用於爆炸
+const holePtBasePos = new Float32Array(HOLE_PARTICLE_COUNT * 3);    // 靜止基準位置
+for (let i = 0; i < HOLE_PARTICLE_COUNT; i++) {
+  const x = (Math.random() - 0.5) * HOLE_REGION * 2;
+  const y = (Math.random() - 0.5) * HOLE_REGION * 2;
+  const z = PLAYER_Z + (Math.random() - 0.5) * 0.5;
+  holePtPositions[i*3]   = holePtBasePos[i*3]   = x;
+  holePtPositions[i*3+1] = holePtBasePos[i*3+1] = y;
+  holePtPositions[i*3+2] = holePtBasePos[i*3+2] = z;
+  // 爆炸速度（向外放射）
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 3 + Math.random() * 5;
+  holePtVelocities[i*3]   = Math.cos(angle) * speed;
+  holePtVelocities[i*3+1] = Math.sin(angle) * speed;
+  holePtVelocities[i*3+2] = (Math.random() - 0.5) * 4;
+}
+const holePtGeo = new THREE.BufferGeometry();
+holePtGeo.setAttribute('position', new THREE.BufferAttribute(holePtPositions, 3));
+// 為每個粒子儲存顏色（動態更新）
+const holePtColors = new Float32Array(HOLE_PARTICLE_COUNT * 3);
+holePtGeo.setAttribute('color', new THREE.BufferAttribute(holePtColors, 3));
+const holePtMat = new THREE.PointsMaterial({
+  size: 0.06, transparent: true, opacity: 0.0,
+  vertexColors: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const holePtMesh = new THREE.Points(holePtGeo, holePtMat);
+holePtMesh.renderOrder = 3;
+// 不加入 scene：黑洞視覺改為純 GLSL 彩色煙霧光暈，不顯示點狀粒子。
+
+// 彩色方形流體馬賽克層：小方塊像電子流體一樣在 4×4 區域內堆積、漂移
+const HOLE_TILE_COLS = 16;
+const HOLE_TILE_ROWS = 16;
+const HOLE_TILE_COUNT = HOLE_TILE_COLS * HOLE_TILE_ROWS;
+const holeTileGeo = new THREE.PlaneGeometry(1, 1);
+const holeTileUniforms = {
+  uTime: { value: 0 },
+  uAlpha: { value: 0 },
+  uCharge: { value: 0 },
+  uBurst: { value: 0 },
+};
+const holeTileMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending,
+  uniforms: holeTileUniforms,
+  vertexShader: `
+    attribute vec3 instanceColor;
+    varying vec2 vUv;
+    varying vec3 vColor;
+    varying float vPulse;
+    uniform float uTime;
+
+    void main() {
+      vUv = uv;
+      vColor = instanceColor;
+      vec3 pos = position;
+      float seed = instanceColor.r * 13.17 + instanceColor.g * 7.91 + instanceColor.b * 3.13;
+      vPulse = 0.5 + 0.5 * sin(uTime * 2.5 + seed * 6.2831);
+      pos.xy *= 0.82 + vPulse * 0.22;
+
+      #ifdef USE_INSTANCING
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+      #else
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      #endif
+    }
+  `,
+  fragmentShader: `
+    precision highp float;
+    varying vec2 vUv;
+    varying vec3 vColor;
+    varying float vPulse;
+    uniform float uAlpha;
+    uniform float uCharge;
+    uniform float uBurst;
+
+    void main() {
+      vec2 p = abs(vUv - 0.5) * 2.0;
+      float outer = max(p.x, p.y);
+      float inner = max(abs(vUv.x - 0.5), abs(vUv.y - 0.5));
+
+      // 透明方形：強邊框 + 弱中心，形成參考視頻中的 hollow square 顆粒
+      float edge = smoothstep(0.58, 0.98, outer);
+      float hollow = 1.0 - smoothstep(0.26, 0.42, inner);
+      float core = (1.0 - outer) * 0.18;
+      float glow = edge * (0.55 + vPulse * 0.45) + hollow * 0.14 + core;
+      glow += uCharge * 0.25 + uBurst * 0.45;
+
+      vec3 color = vColor * (0.78 + vPulse * 0.5);
+      float alpha = glow * uAlpha;
+      if (alpha < 0.015) discard;
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+});
+const holeTileMesh = new THREE.InstancedMesh(holeTileGeo, holeTileMat, HOLE_TILE_COUNT);
+holeTileMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+holeTileMesh.renderOrder = 4;
+// 不加入 scene：去除所有小方塊粒子，只保留 shader 流體煙霧。
+
+const holeTileBase = new Float32Array(HOLE_TILE_COUNT * 3);
+const holeTilePhase = new Float32Array(HOLE_TILE_COUNT);
+const holeTileVelocity = new Float32Array(HOLE_TILE_COUNT * 3);
+const _holeTileMatrix = new THREE.Matrix4();
+const _holeTileColor = new THREE.Color();
+{
+  let idx = 0;
+  for (let y = 0; y < HOLE_TILE_ROWS; y++) {
+    for (let x = 0; x < HOLE_TILE_COLS; x++) {
+      const gx = -HOLE_REGION + (x + 0.5) * (HOLE_REGION * 2 / HOLE_TILE_COLS);
+      const gy = -HOLE_REGION + (y + 0.5) * (HOLE_REGION * 2 / HOLE_TILE_ROWS);
+      holeTileBase[idx*3] = gx;
+      holeTileBase[idx*3+1] = gy;
+      holeTileBase[idx*3+2] = PLAYER_Z + 0.03 + Math.random() * 0.08;
+      holeTilePhase[idx] = Math.random() * Math.PI * 2;
+
+      const dx = gx || (Math.random() - 0.5);
+      const dy = gy || (Math.random() - 0.5);
+      const len = Math.max(0.001, Math.hypot(dx, dy));
+      const spd = 3 + Math.random() * 4;
+      holeTileVelocity[idx*3] = dx / len * spd;
+      holeTileVelocity[idx*3+1] = dy / len * spd;
+      holeTileVelocity[idx*3+2] = (Math.random() - 0.35) * 3;
+
+      _holeTileMatrix.makeScale(0.001, 0.001, 0.001);
+      _holeTileMatrix.setPosition(gx, gy, PLAYER_Z + 0.03);
+      holeTileMesh.setMatrixAt(idx, _holeTileMatrix);
+      holeTileMesh.setColorAt(idx, _holeTileColor.setRGB(0, 0, 0));
+      idx++;
+    }
+  }
+  holeTileMesh.instanceMatrix.needsUpdate = true;
+  if (holeTileMesh.instanceColor) holeTileMesh.instanceColor.needsUpdate = true;
+}
+
+// ── 白盒子爆炸 Shader 粒子 ──
+const WHITE_EXPLOSION_MAX = 4096;
+const whiteExplodePos = new Float32Array(WHITE_EXPLOSION_MAX * 3);
+const whiteExplodeVel = new Float32Array(WHITE_EXPLOSION_MAX * 3);
+const whiteExplodeSeed = new Float32Array(WHITE_EXPLOSION_MAX);
+const whiteExplodeGeo = new THREE.BufferGeometry();
+whiteExplodeGeo.setAttribute('position', new THREE.BufferAttribute(whiteExplodePos, 3));
+whiteExplodeGeo.setAttribute('aVelocity', new THREE.BufferAttribute(whiteExplodeVel, 3));
+whiteExplodeGeo.setAttribute('aSeed', new THREE.BufferAttribute(whiteExplodeSeed, 1));
+whiteExplodeGeo.setDrawRange(0, 0);
+const whiteExplodeUniforms = {
+  uTime: { value: 0 },
+  uOpacity: { value: 0 },
+  uSize: { value: 44 },
+};
+const whiteExplodeMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: whiteExplodeUniforms,
+  vertexShader: `
+    attribute vec3 aVelocity;
+    attribute float aSeed;
+    uniform float uTime;
+    uniform float uSize;
+    varying float vFade;
+    varying float vSeed;
+    void main() {
+      float t = uTime;
+      vec3 p = position + aVelocity * t;
+      p.z += 1.3 * t * t;
+      vFade = max(0.0, 1.0 - t);
+      vSeed = aSeed;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      gl_PointSize = uSize * (0.45 + aSeed * 0.9) * vFade;
+    }
+  `,
+  fragmentShader: `
+    precision highp float;
+    uniform float uOpacity;
+    varying float vFade;
+    varying float vSeed;
+    void main() {
+      vec2 uv = gl_PointCoord - 0.5;
+      float d = length(uv);
+      float core = smoothstep(0.42, 0.0, d);
+      float halo = smoothstep(0.5, 0.08, d) * 0.35;
+      float sparkle = 0.75 + 0.25 * sin(vSeed * 37.0);
+      float alpha = (core + halo) * vFade * uOpacity * sparkle;
+      if (alpha < 0.01) discard;
+      vec3 color = vec3(1.0) * (1.2 + core * 1.8);
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+});
+const whiteExplodePoints = new THREE.Points(whiteExplodeGeo, whiteExplodeMat);
+whiteExplodePoints.renderOrder = 8;
+scene.add(whiteExplodePoints);
+let whiteExplodeActive = false;
+let whiteExplodeTimer = 0;
+let whiteExplodeCount = 0;
+
+// ── 得分/受擊粒子效果 ──
+const FX_MAX = 1400;
+const fxPos = new Float32Array(FX_MAX * 3);
+const fxVel = new Float32Array(FX_MAX * 3);
+const fxColor = new Float32Array(FX_MAX * 3);
+const fxLife = new Float32Array(FX_MAX);
+const fxGeo = new THREE.BufferGeometry();
+fxGeo.setAttribute('position', new THREE.BufferAttribute(fxPos, 3));
+fxGeo.setAttribute('color', new THREE.BufferAttribute(fxColor, 3));
+const fxMat = new THREE.PointsMaterial({
+  size: 0.09,
+  transparent: true,
+  opacity: 0.0,
+  vertexColors: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const fxPoints = new THREE.Points(fxGeo, fxMat);
+fxPoints.renderOrder = 9;
+scene.add(fxPoints);
+
+const hitFlashMat = new THREE.MeshBasicMaterial({
+  color: 0xff1733,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+});
+const hitFlashMesh = new THREE.Mesh(new THREE.PlaneGeometry(CUBE_EDGE * 1.25, CUBE_EDGE * 1.25), hitFlashMat);
+hitFlashMesh.renderOrder = 12;
+hitFlashMesh.visible = false;
+scene.add(hitFlashMesh);
+
+function flashHitFace(cube) {
+  const c = cube.getWorldCenter();
+  hitFlashMesh.position.set(c.x, c.y, PLAYER_Z);
+  hitFlashMesh.scale.setScalar(1);
+  hitFlashMesh.visible = true;
+  hitFlashMat.opacity = 0.95;
+  gsap.killTweensOf(hitFlashMat);
+  gsap.killTweensOf(hitFlashMesh.scale);
+  gsap.to(hitFlashMat, { opacity: 0, duration: 0.34, ease: 'power2.out', onComplete: () => { hitFlashMesh.visible = false; } });
+  gsap.to(hitFlashMesh.scale, { x: 1.75, y: 1.75, z: 1, duration: 0.34, ease: 'power2.out' });
+}
+
+function spawnParticles(center, color, count, power) {
+  for (let n = 0; n < count; n++) {
+    let idx = -1;
+    for (let i = 0; i < FX_MAX; i++) {
+      if (fxLife[i] <= 0) { idx = i; break; }
+    }
+    if (idx < 0) return;
+    const a = Math.random() * Math.PI * 2;
+    const z = (Math.random() - 0.35) * power;
+    const s = power * (0.35 + Math.random());
+    fxPos[idx*3] = center.x;
+    fxPos[idx*3+1] = center.y;
+    fxPos[idx*3+2] = center.z;
+    fxVel[idx*3] = Math.cos(a) * s;
+    fxVel[idx*3+1] = Math.sin(a) * s;
+    fxVel[idx*3+2] = z;
+    fxColor[idx*3] = color.r;
+    fxColor[idx*3+1] = color.g;
+    fxColor[idx*3+2] = color.b;
+    fxLife[idx] = 1;
+  }
+}
+
+function updateFx(dt) {
+  let active = 0;
+  for (let i = 0; i < FX_MAX; i++) {
+    if (fxLife[i] <= 0) continue;
+    fxLife[i] -= dt * 1.8;
+    if (fxLife[i] <= 0) {
+      fxPos[i*3+2] = 9999;
+      continue;
+    }
+    active++;
+    fxPos[i*3] += fxVel[i*3] * dt;
+    fxPos[i*3+1] += fxVel[i*3+1] * dt;
+    fxPos[i*3+2] += fxVel[i*3+2] * dt;
+    fxVel[i*3] *= 0.985;
+    fxVel[i*3+1] *= 0.985;
+    fxVel[i*3+2] *= 0.985;
+  }
+  fxMat.opacity = active > 0 ? 0.9 : 0;
+  fxGeo.attributes.position.needsUpdate = true;
+  fxGeo.attributes.color.needsUpdate = true;
+}
+
+// ── Static tunnel frame (4 corner depth lines + near-end rectangle) ──
+{
+  const h = TUNNEL_HALF;
+  const farZ = -MAX_DEPTH;
+  const corners = [[-h,-h],[h,-h],[h,h],[-h,h]];
+  // 4 corner lines into depth
+  for (const [x,y] of corners) {
+    const pts = [new THREE.Vector3(x, y, NEAR_Z), new THREE.Vector3(x, y, farZ)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), frameMat));
+  }
+  // Near-end rectangle
+  const nearPts = corners.map(([x,y]) => new THREE.Vector3(x, y, NEAR_Z));
+  nearPts.push(nearPts[0].clone());
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(nearPts), frameMat));
+}
+
+// ── Collision ring at PLAYER_Z ──
+{
+  const h = TUNNEL_HALF;
+  const z = PLAYER_Z;
+  // Rectangle connecting all 4 walls
+  const pts = [
+    new THREE.Vector3(-h,-h,z), new THREE.Vector3(h,-h,z),
+    new THREE.Vector3(h,h,z), new THREE.Vector3(-h,h,z),
+    new THREE.Vector3(-h,-h,z),
+  ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), collisionRingMat));
+  // Also draw cross marks on each wall at this z
+  const sides = ['bottom','top','left','right'];
+  for (const side of sides) {
+    const linePts = [];
+    if (side === 'bottom') {
+      linePts.push(new THREE.Vector3(-h, -h, z), new THREE.Vector3(h, -h, z));
+    } else if (side === 'top') {
+      linePts.push(new THREE.Vector3(-h, h, z), new THREE.Vector3(h, h, z));
+    } else if (side === 'left') {
+      linePts.push(new THREE.Vector3(-h, -h, z), new THREE.Vector3(-h, h, z));
+    } else {
+      linePts.push(new THREE.Vector3(h, -h, z), new THREE.Vector3(h, h, z));
+    }
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePts), collisionRingMat));
+  }
+}
+
+// ── Dotted cube factory ──
+const cubeGeo = new THREE.BoxGeometry(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE);
+const dotGeoW = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+
+function createDottedCube(material, dMat) {
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(cubeGeo, material));
+  const half = CUBE_EDGE / 2 + 0.01;
+  const sp = CUBE_EDGE / 5;
+  const faces = [
+    { axis: 'z', val:  half, u: 'x', v: 'y' },
+    { axis: 'z', val: -half, u: 'x', v: 'y' },
+    { axis: 'y', val:  half, u: 'x', v: 'z' },
+    { axis: 'y', val: -half, u: 'x', v: 'z' },
+    { axis: 'x', val:  half, u: 'y', v: 'z' },
+    { axis: 'x', val: -half, u: 'y', v: 'z' },
+  ];
+  for (const f of faces) {
+    for (let r = 1; r <= 4; r++) {
+      for (let c = 1; c <= 4; c++) {
+        const dot = new THREE.Mesh(dotGeoW, dMat || dotMat);
+        const p = { x: 0, y: 0, z: 0 };
+        p[f.axis] = f.val;
+        p[f.u] = -CUBE_EDGE / 2 + c * sp;
+        p[f.v] = -CUBE_EDGE / 2 + r * sp;
+        dot.position.set(p.x, p.y, p.z);
+        group.add(dot);
+      }
+    }
+  }
+  return group;
+}
+
+// ── Rolling cube with dynamic grid trail ──
+class RollingCube {
+  /**
+   * @param {object} [opts]
+   * @param {number}  [opts.speedMul=1]
+   * @param {boolean} [opts.isPickup]  金色可拾取
+   * @param {boolean} [opts.isSlowdown] 紅色全局減速
+   */
+  constructor(side, lane, startDepth, opts) {
+    this.side = side;
+    this.lane = lane;
+    this.depth = Number(startDepth) || 0;
+    this.cellIndex = Math.floor(this.depth);
+    this.rollT = this.depth - this.cellIndex;
+
+    const o = opts || {};
+    this.isPickup = o.isPickup === true;
+    this.isSlowdown = o.isSlowdown === true;
+    this.isRainbow = o.isRainbow === true;
+    this.speedMul = typeof o.speedMul === 'number' && o.speedMul > 0
+      ? o.speedMul
+      : this.isPickup
+        ? (Math.random() < 0.5 ? 0.25 : 0.5)
+        : 1;
+    this.collected = false;
+    this.doneRollingOut = false;
+    this.justEntered = false;
+    // 爆炸狀態
+    this.exploding = false;
+    this.explodeT = 0;
+
+    /** 延遲出發秒數：方塊尚未進場，不渲染也不碰撞 */
+    this.delay = typeof o.delay === 'number' ? o.delay : 0;
+    if (this.delay <= 0) this.justEntered = true;
+
+    // 壞立方體行為: 'bounce' | 'slide' | 'reverse' | null
+    this.badBehavior = o.badBehavior || null;
+    this._bounceNext = false;
+    this._slideTriggered = false;
+    this._reverseState = 0;
+    this._reverseDepthMark = 0;
+
+    if (this.isRainbow) {
+      // 隨機 HSL 鮮豔色彩
+      const hue = Math.random();
+      const rbColor = new THREE.Color().setHSL(hue, 1.0, 0.65);
+      this.cubeFadeMat = new THREE.MeshBasicMaterial({
+        color: rbColor, wireframe: true, transparent: true, opacity: 0.95, depthWrite: false,
+      });
+      this.dotFadeMat = new THREE.MeshBasicMaterial({
+        color: rbColor, wireframe: true, transparent: true, opacity: 0.6, depthWrite: false,
+      });
+    } else if (this.isPickup) {
+      this.cubeFadeMat = playerWireMat.clone();
+      this.cubeFadeMat.transparent = true;
+      this.dotFadeMat = playerDotMat.clone();
+    } else if (this.isSlowdown) {
+      this.cubeFadeMat = redWireMat.clone();
+      this.dotFadeMat = redDotMat.clone();
+    } else {
+      this.cubeFadeMat = cubeMatFade.clone();
+      this.dotFadeMat = dotMat.clone();
+    }
+    this.mesh = createDottedCube(this.cubeFadeMat, this.dotFadeMat);
+    this.pivot = new THREE.Group();
+    this.pivot.add(this.mesh);
+    scene.add(this.pivot);
+
+    // Dynamic grid trail — LineSegments with updatable buffer
+    // Max segments: 2 depth lines + (MAX_DEPTH+2) cross lines = ~14 segments = 28 verts
+    const maxVerts = (2 + MAX_DEPTH + 2) * 2;
+    this.trailBuf = new Float32Array(maxVerts * 3);
+    this.trailGeo = new THREE.BufferGeometry();
+    this.trailGeo.setAttribute('position', new THREE.BufferAttribute(this.trailBuf, 3));
+    const useCustomTrail = this.isPickup || this.isSlowdown || this.isRainbow;
+    this.trailLine = new THREE.LineSegments(
+      this.trailGeo,
+      useCustomTrail ? gridMat.clone() : gridMat
+    );
+    if (this.isPickup) {
+      this.trailLine.material.color.setHex(0xffcc33);
+      this.trailLine.material.opacity = 0.42;
+    } else if (this.isSlowdown) {
+      this.trailLine.material.color.setHex(0xff4444);
+      this.trailLine.material.opacity = 0.42;
+    } else if (this.isRainbow) {
+      this.trailLine.material.color.copy(this.cubeFadeMat.color);
+      this.trailLine.material.opacity = 0.55;
+    }
+    this.pivot.renderOrder = 1;
+    this.mesh.traverse((ch) => {
+      if (ch.isMesh) ch.renderOrder = 1;
+    });
+    this.trailLine.renderOrder = 0;
+    scene.add(this.trailLine);
+
+    this.visible = true;
+    this._updateAll();
+  }
+
+  relocate(newSide, newLane) {
+    this.side = newSide;
+    this.lane = newLane;
+    this._updateAll();
+  }
+
+  // Lane edge coordinates on the wall surface
+  _laneEdges() {
+    const TH = TUNNEL_HALF;
+    if (this.side === 'bottom' || this.side === 'top') {
+      const y = (this.side === 'bottom') ? -TH : TH;
+      const x0 = -TH + this.lane;
+      const x1 = x0 + 1;
+      return { a: { primary: y, cross0: x0, cross1: x1, pAxis: 'y', cAxis: 'x' }};
+    } else {
+      const x = (this.side === 'left') ? -TH : TH;
+      const y0 = -TH + this.lane;
+      const y1 = y0 + 1;
+      return { a: { primary: x, cross0: y0, cross1: y1, pAxis: 'x', cAxis: 'y' }};
+    }
+  }
+
+  _addSeg(idx, x1,y1,z1, x2,y2,z2) {
+    this.trailBuf[idx]   = x1; this.trailBuf[idx+1] = y1; this.trailBuf[idx+2] = z1;
+    this.trailBuf[idx+3] = x2; this.trailBuf[idx+4] = y2; this.trailBuf[idx+5] = z2;
+    return idx + 6;
+  }
+
+  _updateTrail() {
+    const depth = this.depth;
+    const farZ = -depth;
+    const e = this._laneEdges().a;
+    let idx = 0;
+
+    if (e.pAxis === 'y') {
+      // bottom or top wall
+      // 2 depth lines
+      idx = this._addSeg(idx, e.cross0, e.primary, NEAR_Z, e.cross0, e.primary, farZ);
+      idx = this._addSeg(idx, e.cross1, e.primary, NEAR_Z, e.cross1, e.primary, farZ);
+      // Cross lines at each cell boundary
+      const maxD = Math.floor(depth);
+      for (let d = -1; d <= maxD; d++) {
+        const z = -d;
+        if (z > NEAR_Z) continue;
+        if (z < farZ) break;
+        idx = this._addSeg(idx, e.cross0, e.primary, z, e.cross1, e.primary, z);
+      }
+    } else {
+      // left or right wall
+      idx = this._addSeg(idx, e.primary, e.cross0, NEAR_Z, e.primary, e.cross0, farZ);
+      idx = this._addSeg(idx, e.primary, e.cross1, NEAR_Z, e.primary, e.cross1, farZ);
+      const maxD = Math.floor(depth);
+      for (let d = -1; d <= maxD; d++) {
+        const z = -d;
+        if (z > NEAR_Z) continue;
+        if (z < farZ) break;
+        idx = this._addSeg(idx, e.primary, e.cross0, z, e.primary, e.cross1, z);
+      }
+    }
+
+    this.trailBuf.fill(0, idx);
+    this.trailGeo.attributes.position.needsUpdate = true;
+    this.trailGeo.setDrawRange(0, idx / 3);
+  }
+
+  wallPos(laneIdx) {
+    return -TUNNEL_HALF + laneIdx + 0.5;
+  }
+
+  _rollAxis() {
+    return ROLL_AXIS[this.side];
+  }
+
+  getWorldCenter() {
+    const z = -this.depth;
+    const lp = this.wallPos(this.lane);
+    const wo = TUNNEL_HALF - 0.5;
+    switch (this.side) {
+      case 'bottom': return new THREE.Vector3(lp, -wo, z);
+      case 'top':    return new THREE.Vector3(lp,  wo, z);
+      case 'left':   return new THREE.Vector3(-wo, lp, z);
+      case 'right':  return new THREE.Vector3( wo, lp, z);
+    }
+  }
+
+  _updateCube() {
+    const totalDepth = this.depth;
+    const hw = CUBE_EDGE * 0.5;
+    const zc = -this.depth;
+
+    if (totalDepth > MAX_DEPTH) {
+      this.pivot.visible = false;
+      this.visible = false;
+      return;
+    }
+    this.visible = true;
+    this.pivot.visible = true;
+
+    const whiteNearZ = zc + hw;
+    const fullyPastPlane = whiteNearZ < PLAYER_Z;
+    let op = 1;
+    let scale = 1;
+
+    // 入場淡入：depth 0→2 時從 0 漸變到 1，避免洞口突然閃現
+    const FADE_IN_DEPTH = 2;
+    if (totalDepth < FADE_IN_DEPTH) {
+      const fi = totalDepth / FADE_IN_DEPTH;
+      op *= fi;
+      scale *= 0.5 + 0.5 * fi;
+    }
+
+    if (totalDepth > FADE_START) {
+      const t = (totalDepth - FADE_START) / (MAX_DEPTH - FADE_START);
+      op *= 1 - t;
+      scale = 1 - t * 0.5;
+    }
+
+    if (fullyPastPlane) {
+      const pastDist = PLAYER_Z - whiteNearZ;
+      const u = Math.min(1, pastDist / PAST_LINE_FADE_DEPTH);
+      op *= 1 - u;
+      scale *= 1 - u * 0.35;
+    }
+
+    this.cubeFadeMat.opacity = Math.max(0, op);
+    this.cubeFadeMat.transparent = op < 0.999;
+    this.cubeFadeMat.depthWrite = op >= 0.999;
+    this.dotFadeMat.opacity = 0.4 * Math.max(0, op);
+    this.dotFadeMat.transparent = true;
+    this.dotFadeMat.depthWrite = false;
+    this.pivot.scale.setScalar(scale);
+
+    if (op <= 0.02) {
+      this.pivot.visible = false;
+      this.visible = false;
+      return;
+    }
+
+    // 連續深度驅動：樞軸在牆面中心線上 z=-depth，旋轉角為 depth 的累積四分之一圈。
+    // 與 getWorldCenter() 一致，避免「整數格樞軸 + rollT」在跨格時的幾何不連續與微顫。
+    const lp = this.wallPos(this.lane);
+    const wo = TUNNEL_HALF - 0.5;
+    const axis = this._rollAxis();
+    const angle = this.depth * Math.PI * 0.5;
+
+    switch (this.side) {
+      case 'bottom': this.pivot.position.set(lp, -wo, zc); break;
+      case 'top':    this.pivot.position.set(lp,  wo, zc); break;
+      case 'left':   this.pivot.position.set(-wo, lp, zc); break;
+      case 'right':  this.pivot.position.set( wo, lp, zc); break;
+    }
+    this.mesh.position.set(0, 0, 0);
+    this.mesh.quaternion.setFromAxisAngle(axis, angle);
+  }
+
+  _updateAll() {
+    this._updateCube();
+    if (!this.visible) {
+      this.trailGeo.setDrawRange(0, 0);
+      return;
+    }
+    this._updateTrail();
+  }
+
+  triggerExplosion() {
+    this.exploding = true;
+    this.explodeT = 0;
+    // 記住爆炸起點世界位置
+    const wc = this.getWorldCenter();
+    this._explodeOrigin = wc.clone();
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 4 + Math.random() * 6;
+    this._explodeVel = new THREE.Vector3(
+      Math.cos(angle) * spd,
+      Math.sin(angle) * spd,
+      (Math.random() - 0.3) * 3
+    );
+  }
+
+  update(dt) {
+    if (this.doneRollingOut) return;
+
+    // 爆炸動畫
+    if (this.exploding) {
+      this.explodeT += dt * 2.2;
+      const t = this.explodeT;
+      const op = Math.max(0, 1 - t);
+      const sc = 1 + t * 2.5;
+      this.pivot.scale.setScalar(sc);
+      this.cubeFadeMat.opacity = op;
+      this.dotFadeMat.opacity = op * 0.4;
+      this.cubeFadeMat.transparent = true;
+      this.pivot.visible = op > 0.01;
+      // 讓方塊向外飛
+      if (this._explodeOrigin && this._explodeVel) {
+        const nx = this._explodeOrigin.x + this._explodeVel.x * t * 0.3;
+        const ny = this._explodeOrigin.y + this._explodeVel.y * t * 0.3;
+        const nz = this._explodeOrigin.z + this._explodeVel.z * t * 0.3;
+        this.pivot.position.set(nx, ny, nz);
+        this.trailGeo.setDrawRange(0, 0);
+      }
+      if (t >= 1.0) {
+        this.doneRollingOut = true;
+      }
+      return;
+    }
+
+    // 延遲倒數：尚未進場
+    if (this.delay > 0) {
+      this.delay -= dt;
+      if (this.delay > 0) {
+        this.pivot.visible = false;
+        this.trailGeo.setDrawRange(0, 0);
+        this.visible = false;
+        return;
+      }
+      this.justEntered = true;
+    }
+
+    const judgDepth = -PLAYER_Z;
+
+    if (this.badBehavior === 'bounce') {
+      let left = Math.min(dt, 0.08);
+      while (left > 0) {
+        const step = Math.min(left, PHYS_STEP);
+        const prevCell = this.cellIndex;
+        this.depth += step * ROLL_SPEED * this.speedMul;
+        this.cellIndex = Math.floor(this.depth);
+        if (this.cellIndex !== prevCell && this._bounceNext) {
+          this.depth += 1;
+          this.cellIndex = Math.floor(this.depth);
+          this._bounceNext = false;
+        } else if (this.cellIndex !== prevCell) {
+          this._bounceNext = true;
+        }
+        this.rollT = this.depth - this.cellIndex;
+        left -= step;
+      }
+    } else if (this.badBehavior === 'slide') {
+      let left = Math.min(dt, 0.08);
+      while (left > 0) {
+        const step = Math.min(left, PHYS_STEP);
+        this.depth += step * ROLL_SPEED * this.speedMul;
+        this.cellIndex = Math.floor(this.depth);
+        this.rollT = this.depth - this.cellIndex;
+        left -= step;
+      }
+      if (!this._slideTriggered && this.depth >= judgDepth - 2 && this.depth < judgDepth - 1) {
+        this._slideTriggered = true;
+        const others = allWallSlots().filter(s => !(s.side === this.side && s.lane === this.lane));
+        if (others.length > 0) {
+          const target = others[(Math.random() * others.length) | 0];
+          this.side = target.side;
+          this.lane = target.lane;
+        }
+      }
+    } else if (this.badBehavior === 'reverse') {
+      let left = Math.min(dt, 0.08);
+      if (this._reverseState === 0) {
+        while (left > 0) {
+          const step = Math.min(left, PHYS_STEP);
+          this.depth += step * ROLL_SPEED * this.speedMul;
+          left -= step;
+        }
+        if (this.depth >= judgDepth + 2) {
+          this._reverseState = 1;
+          this._reverseDepthMark = this.depth;
+        }
+      } else if (this._reverseState === 1) {
+        while (left > 0) {
+          const step = Math.min(left, PHYS_STEP);
+          this.depth -= step * ROLL_SPEED * this.speedMul;
+          if (this.depth < 0) this.depth = 0;
+          left -= step;
+        }
+        if (this.depth <= judgDepth) {
+          this._reverseState = 2;
+        }
+      } else {
+        while (left > 0) {
+          const step = Math.min(left, PHYS_STEP);
+          this.depth += step * ROLL_SPEED * this.speedMul;
+          left -= step;
+        }
+      }
+      this.cellIndex = Math.floor(this.depth);
+      this.rollT = this.depth - this.cellIndex;
+    } else {
+      let left = Math.min(dt, 0.08);
+      while (left > 0) {
+        const step = Math.min(left, PHYS_STEP);
+        this.depth += step * ROLL_SPEED * this.speedMul;
+        this.cellIndex = Math.floor(this.depth);
+        this.rollT = this.depth - this.cellIndex;
+        left -= step;
+      }
+    }
+
+    this._updateAll();
+
+    if (this.depth >= MAX_DEPTH || (!this.visible && this.depth > FADE_START)) {
+      this.doneRollingOut = true;
+    }
+  }
+
+  dispose() {
+    scene.remove(this.pivot);
+    scene.remove(this.trailLine);
+    if (this.trailLine.material && this.trailLine.material !== gridMat) {
+      this.trailLine.material.dispose();
+    }
+    this.trailGeo.dispose();
+  }
+}
+
+let currentLevel = 1;
+function updateLevelUI() {
+  const el = document.getElementById('level');
+  if (el) el.textContent = 'Lv.' + currentLevel;
+}
+
+// ── Generate cubes ──
+const rollingCubes = [];
+const wallLanes = TUNNEL_HALF * 2; // 6
+
+/** 上一波結束時玩家主軌 */
+let lastWavePlayerTrack = null;
+
+// ── 黑洞系統狀態 ──
+let holeValue = 0;             // 0 ~ HOLE_MAX
+let holeState = 'idle';        // 'idle' | 'charged' | 'exploding' | 'rainbow'
+let explodeTimer = 0;          // 爆炸動畫倒數
+let _holeExplodingCubes = [];  // 爆炸中的方塊（已從 rollingCubes 移出）
+
+/** 即時追蹤力 — 追蹤連續進場但未命中玩家軌道的方塊數 */
+let trackingMissCount = 0;
+let trackingThreshold = 3 + ((Math.random() * 3) | 0); // 3-5
+let trackingLastSide = null;
+let trackingLastLane = -1;
+let trackingEnabled = true;
+
+/** 目前是第幾波（0-based within level） */
+let currentWaveIndex = 0;
+
+/** 全局減速狀態 */
+let globalSlowUntil = 0;
+const GLOBAL_SLOW_MUL = 0.5;
+const GLOBAL_SLOW_DURATION = 4.5;
+
+/** 喘息時刻（關間 1 秒） */
+const LEVEL_GAP_BREATH_SEC = 1;
+let breathUntilTime = 0;
+let isBreathing = false;
+
+// ── 關卡定義 ──
+// waves 中每個元素代表該波的設定
+// type: 'normal' | 'dense' | 'row'
+// count: [min, max]
+// speedRange: [lo, hi] 若存在
+// pickups: 金色方塊數量
+// slowdowns: 紅色方塊數量
+// rowDirs: 連排的方向列表
+const LEVEL_DEFS = {
+  1: {
+    waves: [{ type: 'normal', count: [16, 20] }],
+    speedMul: 0.75,
+  },
+  2: {
+    waves: [
+      { type: 'normal', count: [16, 20] },
+      { type: 'normal', count: [16, 20] },
+    ],
+  },
+  3: {
+    waves: [{ type: 'normal', count: [48, 52] }],
+  },
+  4: {
+    waves: [
+      { type: 'normal', count: [22, 26], speedRange: [0.25, 1.5] },
+      { type: 'dense', count: [20, 22], speedRange: [0.35, 0.6] },
+      { type: 'dense', count: [20, 22], speedRange: [0.75, 1.25] },
+    ],
+  },
+  5: {
+    waves: [{ type: 'normal', count: [44, 48], pickups: [3, 5], denseSpread: true }],
+    speedRange: [0.25, 2.5],
+  },
+  6: {
+    waves: [{ type: 'normal', count: [48, 52], pickups: [3, 5], slowdowns: 2, rowCount: 3 }],
+    speedRange: [0.25, 2],
+  },
+};
+
+function getLevelDef(lv) {
+  return LEVEL_DEFS[lv] || LEVEL_DEFS[6];
+}
+
+function allWallSlots() {
+  const sides = ['bottom', 'top', 'left', 'right'];
+  const slots = [];
+  for (const side of sides) {
+    for (let lane = 0; lane < wallLanes; lane++) {
+      slots.push({ side, lane });
+    }
+  }
+  return slots;
+}
+
+function slotKey(s) {
+  return `${s.side}:${s.lane}`;
+}
+
+function pickTwoForbiddenSlotsLv4() {
+  let pool = allWallSlots().slice();
+  if (lastWavePlayerTrack) {
+    const lk = slotKey(lastWavePlayerTrack);
+    pool = pool.filter((s) => slotKey(s) !== lk);
+  }
+  if (pool.length < 2) pool = allWallSlots().slice();
+  shuffleInPlace(pool);
+  return [pool[0], pool[1]];
+}
+
+// ── 黑洞系統函數 ──
+
+function resetHoleState() {
+  holeValue = 0;
+  holeState = 'idle';
+  explodeTimer = 0;
+  randomizeBlackHoleLook();
+  // 重置粒子位置
+  const pos = holePtGeo.attributes.position.array;
+  for (let i = 0; i < HOLE_PARTICLE_COUNT; i++) {
+    pos[i*3]   = holePtBasePos[i*3];
+    pos[i*3+1] = holePtBasePos[i*3+1];
+    pos[i*3+2] = holePtBasePos[i*3+2];
+  }
+  holePtGeo.attributes.position.needsUpdate = true;
+  // 重置方形流體馬賽克
+  for (let i = 0; i < HOLE_TILE_COUNT; i++) {
+    _holeTileMatrix.identity();
+    _holeTileMatrix.makeScale(0.001, 0.001, 0.001);
+    _holeTileMatrix.setPosition(holeTileBase[i*3], holeTileBase[i*3+1], holeTileBase[i*3+2]);
+    holeTileMesh.setMatrixAt(i, _holeTileMatrix);
+    holeTileMesh.setColorAt(i, _holeTileColor.setRGB(0, 0, 0));
+  }
+  holeTileMesh.instanceMatrix.needsUpdate = true;
+  if (holeTileMesh.instanceColor) holeTileMesh.instanceColor.needsUpdate = true;
+  holeMotion.charge = 0;
+  holeMotion.tileAlpha = 0;
+  holeMotion.fluidOpacity = 0;
+  holeMotion.burst = 0;
+  holeMotion.inputX = 0;
+  holeMotion.inputY = 0;
+  holeTileUniforms.uAlpha.value = 0;
+  holeTileUniforms.uCharge.value = 0;
+  holeTileUniforms.uBurst.value = 0;
+  holeFluidUniforms.uOpacity.value = 0;
+  holeFluidUniforms.uCharge.value = 0;
+  holeFluidUniforms.uBurst.value = 0;
+  holeFluidUniforms.uInput.value.set(0, 0);
+  voidUiEl.classList.remove('void-full');
+  whiteExplodeActive = false;
+  whiteExplodeTimer = 0;
+  whiteExplodeCount = 0;
+  whiteExplodeUniforms.uTime.value = 0;
+  whiteExplodeUniforms.uOpacity.value = 0;
+  whiteExplodeGeo.setDrawRange(0, 0);
+}
+
+function generateRainbowWave() {
+  const n = RAINBOW_COUNT_RANGE[0] + ((Math.random() * (RAINBOW_COUNT_RANGE[1] - RAINBOW_COUNT_RANGE[0] + 1)) | 0);
+  const slots = roundRobinSlots(allWallSlots(), n);
+  const spreadSec = Math.max(2, n * 0.2);
+  const delays = assignRandomDelays(n, spreadSec);
+  for (let i = 0; i < n; i++) {
+    rollingCubes.push(new RollingCube(slots[i].side, slots[i].lane, 0, {
+      isRainbow: true,
+      speedMul: 0.8,
+      delay: delays[i],
+    }));
+  }
+}
+
+function spawnWhiteCubeParticleExplosion(cubes) {
+  let idx = 0;
+  for (const cube of cubes) {
+    if (cube.doneRollingOut || cube.delay > 0 || cube.isPickup || cube.isSlowdown || cube.isRainbow) continue;
+    const center = cube.getWorldCenter();
+    const perCube = 34;
+    for (let j = 0; j < perCube && idx < WHITE_EXPLOSION_MAX; j++, idx++) {
+      const ox = (Math.random() - 0.5) * CUBE_EDGE;
+      const oy = (Math.random() - 0.5) * CUBE_EDGE;
+      const oz = (Math.random() - 0.5) * CUBE_EDGE;
+      whiteExplodePos[idx*3] = center.x + ox;
+      whiteExplodePos[idx*3+1] = center.y + oy;
+      whiteExplodePos[idx*3+2] = center.z + oz;
+
+      const len = Math.max(0.001, Math.hypot(ox, oy, oz));
+      const speed = 3.5 + Math.random() * 6.5;
+      whiteExplodeVel[idx*3] = (ox / len) * speed + (Math.random() - 0.5) * 1.5;
+      whiteExplodeVel[idx*3+1] = (oy / len) * speed + (Math.random() - 0.5) * 1.5;
+      whiteExplodeVel[idx*3+2] = (oz / len) * speed - Math.random() * 3.0;
+      whiteExplodeSeed[idx] = Math.random();
+    }
+  }
+  whiteExplodeCount = idx;
+  whiteExplodeTimer = 0;
+  whiteExplodeActive = idx > 0;
+  whiteExplodeUniforms.uTime.value = 0;
+  whiteExplodeUniforms.uOpacity.value = idx > 0 ? 1 : 0;
+  whiteExplodeGeo.setDrawRange(0, idx);
+  whiteExplodeGeo.attributes.position.needsUpdate = true;
+  whiteExplodeGeo.attributes.aVelocity.needsUpdate = true;
+  whiteExplodeGeo.attributes.aSeed.needsUpdate = true;
+}
+
+function triggerBlackHoleExplosion() {
+  if (holeState !== 'charged') return;
+  voidUiEl.classList.remove('void-full');
+  holeState = 'exploding';
+  explodeTimer = EXPLODE_DURATION;
+  isBreathing = false;
+  breathUntilTime = Infinity;
+
+  spawnWhiteCubeParticleExplosion(rollingCubes);
+  for (const cube of rollingCubes) {
+    cube.dispose();
+  }
+  _holeExplodingCubes = [];
+  rollingCubes.length = 0;
+}
+
+function advanceWaveOrLevel() {
+  if (gameOver) return;
+  const L = PLAYER_XY_LIMIT;
+  const track = getDominantPlayerTrack(playerPos.x, playerPos.y, L, PERIM_EDGE_EPS);
+  lastWavePlayerTrack = track;
+
+  if (!tutorialSeen.voidBar && !firstWaveCompleted) {
+    tutorialSeen.voidBar = true;
+    firstWaveCompleted = true;
+    showGuide('voidBar', '', 'Entropy increases as cubes roll into the system!', { focusVoid: true });
+  }
+
+  for (const c of rollingCubes) c.dispose();
+  rollingCubes.length = 0;
+
+  const def = getLevelDef(currentLevel);
+  currentWaveIndex++;
+
+  if (currentWaveIndex < def.waves.length) {
+    // 第四關波間無喘息，直接進下一波
+    if (currentLevel === 4) {
+      isBreathing = false;
+      generateWave();
+    } else {
+      isBreathing = true;
+      breathUntilTime = time + LEVEL_GAP_BREATH_SEC;
+    }
+  } else {
+    if (levelHitCount === 0) {
+      score *= 2;
+      scoreEl.textContent = score;
+      showFloatingText('PERFECT ×2', '#ffffff');
+    } else if (levelHitCount <= 2) {
+      showFloatingText('NOT BAD', '#ffd86b');
+    }
+    levelHitCount = 0;
+    if (currentLevel < 6) {
+      currentLevel++;
+      updateLevelUI();
+    }
+    currentWaveIndex = 0;
+    isBreathing = true;
+    breathUntilTime = time + LEVEL_GAP_BREATH_SEC;
+  }
+}
+
+/**
+ * 最近軌道中心對應的 lane（與白方塊 wallPos(lane) 一致）。
+ * 不可用 floor(u+TH)：例如左牆 py=L=2 時 floor(2+3-ε)=4，但視覺上貼上邊應屬最上軌 lane5（中心 y=2.5），
+ * 會誤判成第 2 條軌而與鄰軌白方塊碰撞。
+ * 平手：bottom/top 取較小 lane（偏左）；left/right 取較大 lane（偏上）。
+ */
+function laneIndexNearestForWall(u, side) {
+  const horiz = side === 'bottom' || side === 'top';
+  let best = 0;
+  let bd = Infinity;
+  for (let lane = 0; lane < wallLanes; lane++) {
+    const c = -TUNNEL_HALF + lane + 0.5;
+    const d = Math.abs(u - c);
+    if (d < bd - 1e-9) {
+      bd = d;
+      best = lane;
+    } else if (Math.abs(d - bd) <= 1e-9) {
+      if (horiz && lane < best) best = lane;
+      if (!horiz && lane > best) best = lane;
+    }
+  }
+  return best;
+}
+
+/** 玩家貼邊時可能屬的牆面與 lane（轉角會回傳兩條候選） */
+function getPlayerTracks(px, py, L, eps) {
+  const onL = px <= -L + eps;
+  const onR = px >= L - eps;
+  const onB = py <= -L + eps;
+  const onT = py >= L - eps;
+  const tracks = [];
+  if (onB) tracks.push({ side: 'bottom', lane: laneIndexNearestForWall(px, 'bottom') });
+  if (onT) tracks.push({ side: 'top', lane: laneIndexNearestForWall(px, 'top') });
+  if (onL) tracks.push({ side: 'left', lane: laneIndexNearestForWall(py, 'left') });
+  if (onR) tracks.push({ side: 'right', lane: laneIndexNearestForWall(py, 'right') });
+  return tracks;
+}
+
+const SIDE_PRIORITY = { bottom: 0, left: 1, top: 2, right: 3 };
+
+/** 碰撞僅用「當下主軌」：非轉角即該邊；轉角取貼邊法向距離較小者（平手依牆優先序） */
+function getDominantPlayerTrack(px, py, L, eps) {
+  const tracks = getPlayerTracks(px, py, L, eps);
+  if (tracks.length === 0) return null;
+  if (tracks.length === 1) return tracks[0];
+  const sorted = tracks.slice().sort((a, b) => SIDE_PRIORITY[a.side] - SIDE_PRIORITY[b.side]);
+  let best = sorted[0];
+  let bd = Infinity;
+  for (const t of sorted) {
+    let d = 0;
+    if (t.side === 'bottom') d = Math.abs(py + L);
+    else if (t.side === 'top') d = Math.abs(py - L);
+    else if (t.side === 'left') d = Math.abs(px + L);
+    else d = Math.abs(px - L);
+    if (d < bd - 1e-6) {
+      bd = d;
+      best = t;
+    }
+  }
+  return best;
+}
+
+/** 判定矩形周長的四個轉角（同時貼兩條正交邊） */
+function isJudgmentCorner(px, py, L, eps) {
+  const onL = px <= -L + eps;
+  const onR = px >= L - eps;
+  const onB = py <= -L + eps;
+  const onT = py >= L - eps;
+  return (onB && onL) || (onB && onR) || (onT && onL) || (onT && onR);
+}
+
+/**
+ * 非轉角貼邊時：往對側水平／垂直瞬移（左↔右 y 不變、下↔上 x 不變）。
+ * 轉角僅能沿兩邊「正常」滑動，不觸發瞬移（由 filterJudgmentPerimeterInput 處理）。
+ */
+function tryJudgmentOppositeWarp(px, py, rdx, rdy, L, eps) {
+  if (isJudgmentCorner(px, py, L, eps)) return null;
+
+  const th = 1e-7;
+  const onL = px <= -L + eps;
+  const onR = px >= L - eps;
+  const onB = py <= -L + eps;
+  const onT = py >= L - eps;
+
+  const clampX = (x) => Math.max(-L, Math.min(L, x));
+  const clampY = (y) => Math.max(-L, Math.min(L, y));
+
+  const opts = [];
+  if (onL && rdx > th) {
+    opts.push({ w: Math.abs(rdx), x: L, y: clampY(py) });
+  }
+  if (onR && rdx < -th) {
+    opts.push({ w: Math.abs(rdx), x: -L, y: clampY(py) });
+  }
+  if (onB && rdy > th) {
+    opts.push({ w: Math.abs(rdy), x: clampX(px), y: L });
+  }
+  if (onT && rdy < -th) {
+    opts.push({ w: Math.abs(rdy), x: clampX(px), y: -L });
+  }
+  if (opts.length === 0) return null;
+  opts.sort((a, b) => b.w - a.w);
+  const o = opts[0];
+  return { x: o.x, y: o.y };
+}
+
+const WALL_INSET = TUNNEL_HALF - 0.5;
+
+/** 已確認同軌後：沿軸向對齊 + 法向貼牆（避免鄰軌誤判） */
+function planarOverlapSameTrackOnly(cube, px, py) {
+  const lp = cube.wallPos(cube.lane);
+  const hg = PLAYER_CUBE_SIZE * 0.5;
+  const hw = CUBE_EDGE * 0.5;
+  const alongLim = Math.min(hg + hw, 0.92);
+  const perpLim = hg + 0.52;
+  switch (cube.side) {
+    case 'bottom':
+      if (Math.abs(py + WALL_INSET) > perpLim) return false;
+      return Math.abs(px - lp) < alongLim;
+    case 'top':
+      if (Math.abs(py - WALL_INSET) > perpLim) return false;
+      return Math.abs(px - lp) < alongLim;
+    case 'left':
+      if (Math.abs(px + WALL_INSET) > perpLim) return false;
+      return Math.abs(py - lp) < alongLim;
+    case 'right':
+      if (Math.abs(px - WALL_INSET) > perpLim) return false;
+      return Math.abs(py - lp) < alongLim;
+    default:
+      return false;
+  }
+}
+
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+  }
+  return arr;
+}
+
+/**
+ * ── 生成機制說明 ──
+ * 所有方塊都從 depth=0（隧道口最前端）開始滾動。
+ * 用 delay（秒）控制每顆方塊何時進場。
+ * delay=0 的方塊立即出現，delay=2 的方塊 2 秒後從洞口出現。
+ * 同軌方塊之間的 delay 差距 = 距離差 / (ROLL_SPEED × speedMul)。
+ *
+ * 一顆 speedMul=1 的方塊滾完整條隧道需要 MAX_DEPTH / ROLL_SPEED ≈ 4.7 秒。
+ * 所以一波的持續時間 ≈ 5.87s + 最後一顆方塊的 delay。
+ *
+ * 你設定的「數量」就是這一波實際出現的方塊總數，直觀對應。
+ */
+
+/** 每次呼叫都重新擲骰——每顆方塊各自獨立速度。waveDef.speedRange 優先於 def.speedRange */
+function hazardOptsForWave(def, waveDef) {
+  const sr = (waveDef && waveDef.speedRange) || def.speedRange;
+  if (sr) {
+    const [lo, hi] = sr;
+    return { speedMul: lo + Math.random() * (hi - lo) };
+  }
+  if (waveDef && waveDef.speedMul) return { speedMul: waveDef.speedMul };
+  if (def.speedMul) return { speedMul: def.speedMul };
+  return {};
+}
+
+function randInRange(range) {
+  return range[0] + ((Math.random() * (range[1] - range[0] + 1)) | 0);
+}
+
+/**
+ * 距離差規則：同軌道相鄰方塊保持 MIN_DEPTH_GAP~MAX_DEPTH_GAP 格距離。
+ * 轉換為 delay 間距 = 格距 / (ROLL_SPEED × 較慢方塊的 speedMul)。
+ * 這允許同軌道同時有多個方塊在場，只要保持間距。
+ */
+/**
+ * 均勻分配軌道：把 n 個方塊輪轉分配到 slots 上，每條軌道最多比其他多 1 個方塊。
+ * 每輪重新洗牌，保證隨機性。
+ */
+function roundRobinSlots(slots, n) {
+  const result = [];
+  const pool = slots.slice();
+  while (result.length < n) {
+    shuffleInPlace(pool);
+    for (let i = 0; i < pool.length && result.length < n; i++) {
+      result.push({ side: pool[i].side, lane: pool[i].lane });
+    }
+  }
+  return result;
+}
+
+/**
+ * 嚴格獨佔規則：同軌道上的下一個方塊必須在前一個方塊完全滾出隧道之後才進場。
+ * transitTime = MAX_DEPTH / (ROLL_SPEED * speedMul)
+ */
+function enforceTrackExclusive(entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const k = slotKey(e);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  for (const arr of groups.values()) {
+    if (arr.length <= 1) continue;
+    arr.sort((a, b) => a.delay - b.delay);
+    for (let i = 1; i < arr.length; i++) {
+      const prevSpeed = arr[i - 1].opts.speedMul || 1;
+      const prevTransit = MAX_DEPTH / (ROLL_SPEED * prevSpeed);
+      const earliest = arr[i - 1].delay + prevTransit;
+      if (arr[i].delay < earliest) {
+        arr[i].delay = earliest;
+      }
+    }
+  }
+}
+
+/** 密集圈：20 軌中空 1-4 軌，均勻分配到各軌道 */
+function generateDenseEntries(count, baseDelay, levelDef, waveDef) {
+  const entries = [];
+  const all = allWallSlots();
+  const emptyCount = 1 + ((Math.random() * 4) | 0);
+  shuffleInPlace(all);
+  const forbiddenKeys = new Set(all.slice(0, emptyCount).map(slotKey));
+  const allowed = all.filter(s => !forbiddenKeys.has(slotKey(s)));
+
+  const slots = roundRobinSlots(allowed, count);
+  for (let i = 0; i < count; i++) {
+    const denseDelay = baseDelay + Math.random() * 0.5;
+    entries.push({
+      side: slots[i].side, lane: slots[i].lane, delay: denseDelay,
+      opts: hazardOptsForWave(levelDef, waveDef),
+    });
+  }
+  return entries;
+}
+
+/** 連排：指定方向 6 軌同時進場、同速度、平齊無距離差 */
+function generateRowEntries(side, delay, levelDef, waveDef) {
+  const entries = [];
+  const sharedOpts = hazardOptsForWave(levelDef, waveDef);
+  for (let lane = 0; lane < wallLanes; lane++) {
+    entries.push({ side, lane, delay, opts: { ...sharedOpts } });
+  }
+  return entries;
+}
+
+/**
+ * 為一波的 n 顆方塊分配隨機 delay。
+ * spreadSec = 這些方塊分散進場的時間跨度（秒）。
+ * 第一顆 delay=0，最後一顆 delay ≈ spreadSec。
+ */
+function assignRandomDelays(n, spreadSec) {
+  const delays = [];
+  for (let i = 0; i < n; i++) {
+    delays.push(Math.random() * spreadSec);
+  }
+  delays.sort((a, b) => a - b);
+  return delays;
+}
+
+function generateWave() {
+  // 每一波第一個立方體滾來前重新開啟追蹤力
+  trackingEnabled = true;
+  trackingMissCount = 0;
+  trackingThreshold = 3 + ((Math.random() * 3) | 0);
+  trackingLastSide = null;
+  trackingLastLane = -1;
+
+  const Lv = currentLevel;
+  const def = getLevelDef(Lv);
+  const waveDef = def.waves[currentWaveIndex] || def.waves[0];
+
+  const [nMin, nMax] = waveDef.count;
+  let n = randInRange(waveDef.count);
+
+  let allowed = allWallSlots();
+  if (Lv === 4) {
+    const forb = pickTwoForbiddenSlotsLv4();
+    const fk = new Set(forb.map(slotKey));
+    allowed = allowed.filter(s => !fk.has(slotKey(s)));
+  }
+
+  let entries = [];
+
+  // 進場分散時間：方塊越多，分散越久，保證畫面不會瞬間塞滿
+  // denseSpread：縮短間距，讓方塊更密集連續（Lv.5 效果）
+  const spreadSec = waveDef.denseSpread
+    ? Math.max(2, n * 0.15)
+    : Math.max(2, n * 0.35);
+
+  if (waveDef.type === 'dense') {
+    entries = generateDenseEntries(n, 0, def, waveDef);
+  } else {
+    // rowCount：Lv.6 隨機時間先後出現的連排數量（每次一個方向）
+    const rowCount = waveDef.rowCount || 0;
+    const rowSides = ['top', 'bottom', 'left', 'right'];
+
+    if (rowCount > 0) {
+      // 連排佔用 rowCount * 6 個方塊，剩下是普通方塊
+      const rowTotal = rowCount * 6;
+      const normalN = Math.max(0, n - rowTotal);
+
+      // 先為全部方塊（普通 + 連排）生成分散的 delay
+      const allDelays = assignRandomDelays(n, spreadSec);
+
+      // 從 allDelays 中取 rowCount 個隨機時間點給連排（選靠後的位置，讓普通方塊先到）
+      const rowDelayIndices = [];
+      const available = Array.from({ length: n }, (_, i) => i);
+      shuffleInPlace(available);
+      for (let i = 0; i < rowCount; i++) rowDelayIndices.push(available[i]);
+      rowDelayIndices.sort((a, b) => a - b);
+
+      // 連排方向隨機選，不重複
+      const shuffledSides = rowSides.slice();
+      shuffleInPlace(shuffledSides);
+      for (let i = 0; i < rowCount; i++) {
+        const dir = shuffledSides[i % shuffledSides.length];
+        const rowDelay = allDelays[rowDelayIndices[i]];
+        entries.push(...generateRowEntries(dir, rowDelay, def, waveDef));
+      }
+
+      // 剩餘普通方塊，用未被連排佔用的 delay 索引
+      const usedIdx = new Set(rowDelayIndices);
+      const normalDelays = allDelays.filter((_, i) => !usedIdx.has(i));
+      const slots = roundRobinSlots(allowed, normalN);
+      for (let i = 0; i < normalN; i++) {
+        entries.push({
+          side: slots[i].side, lane: slots[i].lane,
+          delay: normalDelays[i] ?? spreadSec * Math.random(),
+          opts: hazardOptsForWave(def, waveDef),
+        });
+      }
+    } else {
+      const delays = assignRandomDelays(n, spreadSec);
+      const slots = roundRobinSlots(allowed, n);
+      for (let i = 0; i < n; i++) {
+        entries.push({
+          side: slots[i].side, lane: slots[i].lane,
+          delay: delays[i],
+          opts: hazardOptsForWave(def, waveDef),
+        });
+      }
+    }
+  }
+
+  // 金/紅方塊：優先分配到空閒軌道，空閒不足時允許和白方塊共軌排隊
+  // enforceTrackExclusive 會確保同軌道方塊依序進場，不會同時出現
+  {
+    const allSlots = allWallSlots();
+    shuffleInPlace(allSlots);
+    const usedSlotKeys = new Set(entries.map(e => slotKey(e)));
+    const freeSlots = allSlots.filter(s => !usedSlotKeys.has(slotKey(s)));
+    // 若空閒不夠，回落到所有軌道隨機選
+    // 計算每個軌道已排隊的方塊數，優先選排隊最少的
+    const queueCount = new Map();
+    for (const e of entries) {
+      const k = slotKey(e);
+      queueCount.set(k, (queueCount.get(k) || 0) + 1);
+    }
+    const pickSlots = (count) => {
+      // 按排隊數升序排列所有軌道，優先放隊伍短的
+      const sorted = allSlots.slice().sort((a, b) =>
+        (queueCount.get(slotKey(a)) || 0) - (queueCount.get(slotKey(b)) || 0)
+      );
+      const result = [];
+      for (let i = 0; i < count; i++) {
+        result.push(sorted[i % sorted.length]);
+      }
+      return result;
+    };
+
+    const pickupRange = waveDef.pickups;
+    if (pickupRange) {
+      const pCount = Array.isArray(pickupRange) ? randInRange(pickupRange) : pickupRange;
+      const pSlots = pickSlots(pCount);
+      for (let i = 0; i < pCount; i++) {
+        const dly = Math.random() * spreadSec;
+        const pSpeed = Math.random() < 0.5 ? 0.25 : 0.5;
+        entries.push({ side: pSlots[i].side, lane: pSlots[i].lane, delay: dly, opts: { isPickup: true, speedMul: pSpeed } });
+      }
+    }
+
+    const sdCount = waveDef.slowdowns || 0;
+    if (sdCount > 0) {
+      const sdSlots = pickSlots(sdCount);
+      for (let i = 0; i < sdCount; i++) {
+        const dly = 1 + Math.random() * Math.max(1, spreadSec - 2);
+        entries.push({ side: sdSlots[i].side, lane: sdSlots[i].lane, delay: dly, opts: { isSlowdown: true } });
+      }
+    }
+  }
+
+  // 嚴格獨佔：同軌道前一個方塊完全滾出後下一個才進場
+  enforceTrackExclusive(entries);
+
+  for (const e of entries) {
+    rollingCubes.push(new RollingCube(e.side, e.lane, 0, { ...e.opts, delay: e.delay }));
+  }
+}
+
+// ── Player：與白方塊同款的線框+點陣，金色；depthWrite false 避免遮擋白方塊線條 ──
+// 群組 z=PLAYER_Z；子網格 z=-hg，使【近端面】(+z 朝相機)貼齊判定面 z=PLAYER_Z（白方塊 whiteNearZ 同側）
+function createPlayerCube() {
+  const s = PLAYER_CUBE_SIZE;
+  const hg = s * 0.5;
+  const group = new THREE.Group();
+  const mesh = createDottedCube(playerWireMat, playerDotMat);
+  mesh.position.z = -hg;
+  mesh.traverse((ch) => {
+    if (ch.isMesh) ch.renderOrder = -2;
+  });
+  group.add(mesh);
+  group.renderOrder = -2;
+  return group;
+}
+const playerGroup = createPlayerCube();
+scene.add(playerGroup);
+
+const _spawn = playerSpawnOnJudgmentEdge();
+const playerPos = { x: _spawn.x, y: _spawn.y };
+
+// ── Game state ──
+let gameOver = false;
+let score = 0;
+let time = 0;
+let lives = 3;
+let levelHitCount = 0;
+let firstWaveCompleted = false;
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const gameoverEl = document.getElementById('gameover');
+const finalscoreEl = document.getElementById('finalscore');
+const floatingTextEl = document.getElementById('floating-text');
+const guideOverlayEl = document.getElementById('guide-overlay');
+const guideCardEl = document.getElementById('guide-card');
+const guideTitleEl = document.getElementById('guide-title');
+const guideBodyEl = document.getElementById('guide-body');
+const guideKeysEl = document.getElementById('guide-keys');
+const guideHintEl = document.getElementById('guide-hint');
+const voidUiEl = document.getElementById('void-ui');
+const bestScoreEl = document.getElementById('bestscore');
+let bestScore = Number(localStorage.getItem('gridTunnelBestScore') || '0');
+bestScoreEl.textContent = bestScore;
+
+let tutorialPause = false;
+let activeGuide = null;
+const tutorialSeen = {
+  avoid: false,
+  voidBar: false,
+  voidFull: false,
+  yellow: false,
+  red: false,
+};
+let firstCubeTimer = 0;
+
+function addScore(points, label, color) {
+  score += points;
+  scoreEl.textContent = score;
+  if (label) showFloatingText(label, color || '#fff');
+}
+
+function updateLivesUI() {
+  livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, 3 - lives));
+}
+
+function showFloatingText(text, color) {
+  floatingTextEl.textContent = text;
+  floatingTextEl.style.color = color || '#fff';
+  gsap.killTweensOf(floatingTextEl);
+  gsap.fromTo(floatingTextEl,
+    { opacity: 0, y: 20, scale: 0.85 },
+    { opacity: 1, y: 0, scale: 1.1, duration: 0.18, ease: 'power2.out',
+      onComplete: () => gsap.to(floatingTextEl, { opacity: 0, y: -28, scale: 1, delay: 0.45, duration: 0.35, ease: 'power2.in' }) }
+  );
+}
+
+function showNearTrackText(text, cube, color) {
+  const p = cube.getWorldCenter().project(camera);
+  const x = (p.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-p.y * 0.5 + 0.5) * window.innerHeight;
+  floatingTextEl.textContent = text;
+  floatingTextEl.style.color = color || '#66ffff';
+  gsap.killTweensOf(floatingTextEl);
+  gsap.fromTo(floatingTextEl,
+    { opacity: 0, x: x - window.innerWidth * 0.5 + 24, y: y - window.innerHeight * 0.34, scale: 0.8 },
+    { opacity: 1, scale: 1.05, duration: 0.16, ease: 'power2.out',
+      onComplete: () => gsap.to(floatingTextEl, { opacity: 0, y: y - window.innerHeight * 0.34 - 26, delay: 0.45, duration: 0.34, ease: 'power2.in' }) }
+  );
+}
+
+function showGuide(type, title, body, opts = {}) {
+  tutorialPause = true;
+  activeGuide = type;
+  guideTitleEl.textContent = title;
+  guideBodyEl.textContent = body;
+  guideKeysEl.style.display = opts.keys === false ? 'none' : 'grid';
+  guideHintEl.textContent = opts.hint || 'PRESS ANY DIRECTION TO CONTINUE';
+  guideOverlayEl.classList.add('show');
+  guideOverlayEl.classList.toggle('hole-open', opts.focusHole === true);
+  voidUiEl.classList.toggle('guide-focus', opts.focusVoid === true);
+  guideCardEl.classList.toggle('guide-focus', opts.focusVoid === true || opts.focusText === true);
+}
+
+function closeGuideByInput(isSpace) {
+  if (!tutorialPause) return false;
+  if (activeGuide === 'voidFull' && !isSpace) return true;
+  tutorialPause = false;
+  activeGuide = null;
+  guideOverlayEl.classList.remove('show');
+  guideOverlayEl.classList.remove('hole-open');
+  voidUiEl.classList.remove('guide-focus');
+  guideCardEl.classList.remove('guide-focus');
+  return false;
+}
+
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  startBgm();
+  return audioCtx;
+}
+
+let bgmStarted = false;
+let bgmGain = null;
+let bgmOscs = [];
+let bgmChordTimer = null;
+function startBgm() {
+  if (bgmStarted || !audioCtx) return;
+  bgmStarted = true;
+  const ctx = audioCtx;
+  bgmGain = ctx.createGain();
+  bgmGain.gain.value = 0.028;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 820;
+  filter.Q.value = 0.9;
+
+  const delay = ctx.createDelay(1.2);
+  delay.delayTime.value = 0.42;
+  const feedback = ctx.createGain();
+  feedback.gain.value = 0.28;
+  delay.connect(feedback).connect(delay);
+
+  bgmGain.connect(filter).connect(delay).connect(ctx.destination);
+  filter.connect(ctx.destination);
+
+  const oscTypes = ['sawtooth', 'triangle', 'sine'];
+  for (let i = 0; i < 3; i++) {
+    const osc = ctx.createOscillator();
+    osc.type = oscTypes[i];
+    const g = ctx.createGain();
+    g.gain.value = i === 0 ? 0.018 : 0.012;
+    osc.connect(g).connect(bgmGain);
+    osc.start();
+    bgmOscs.push(osc);
+  }
+
+  const chords = [
+    [130.81, 164.81, 196.00],
+    [146.83, 185.00, 220.00],
+    [110.00, 146.83, 174.61],
+    [123.47, 155.56, 207.65],
+  ];
+  let chordIdx = 0;
+  const setChord = () => {
+    const now = ctx.currentTime;
+    const chord = chords[chordIdx % chords.length];
+    for (let i = 0; i < bgmOscs.length; i++) {
+      bgmOscs[i].frequency.cancelScheduledValues(now);
+      bgmOscs[i].frequency.linearRampToValueAtTime(chord[i] * (i === 2 ? 2 : 1), now + 1.8);
+    }
+    filter.frequency.linearRampToValueAtTime(620 + Math.random() * 520, now + 2.0);
+    chordIdx++;
+  };
+  setChord();
+  bgmChordTimer = setInterval(setChord, 5200);
+}
+
+// 嘗試進入頁面即啟動 BGM；若瀏覽器阻擋，首次觸控/鍵盤時 ensureAudio 會再次 resume。
+window.addEventListener('load', () => {
+  try { ensureAudio(); } catch (_) {}
+});
+window.addEventListener('pointerdown', () => {
+  try { ensureAudio(); } catch (_) {}
+}, { once: true });
+
+function playScoreSound() {
+  const ctx = ensureAudio();
+  const now = ctx.currentTime;
+  for (let i = 0; i < 3; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime([880, 1175, 1568][i], now + i * 0.045);
+    gain.gain.setValueAtTime(0, now + i * 0.045);
+    gain.gain.linearRampToValueAtTime(0.055, now + i * 0.045 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.045 + 0.16);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now + i * 0.045);
+    osc.stop(now + i * 0.045 + 0.18);
+  }
+}
+
+function playHitSound() {
+  const ctx = ensureAudio();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(160, now);
+  osc.frequency.exponentialRampToValueAtTime(55, now + 0.32);
+  gain.gain.setValueAtTime(0.09, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.38);
+}
+
+const MOVE_KEY_CODES = new Set([
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+  'KeyA', 'KeyD', 'KeyW', 'KeyS',
+]);
+
+function inputCodeToDir(code) {
+  switch (code) {
+    case 'ArrowLeft':
+    case 'KeyA':
+      return { rdx: -PLAYER_GRID_STEP, rdy: 0 };
+    case 'ArrowRight':
+    case 'KeyD':
+      return { rdx: PLAYER_GRID_STEP, rdy: 0 };
+    case 'ArrowUp':
+    case 'KeyW':
+      return { rdx: 0, rdy: PLAYER_GRID_STEP };
+    case 'ArrowDown':
+    case 'KeyS':
+      return { rdx: 0, rdy: -PLAYER_GRID_STEP };
+    default:
+      return null;
+  }
+}
+
+/** 每鍵一步：先判瞬移對邊，否則沿周長移動一格 */
+function playerMoveFromKey(code) {
+  if (tutorialPause) {
+    const dir0 = inputCodeToDir(code);
+    if (dir0) closeGuideByInput(false);
+    return;
+  }
+  if (gameOver) return;
+  const dir = inputCodeToDir(code);
+  if (!dir) return;
+  ensureAudio();
+  nudgeBlackHoleFlow(dir.rdx, dir.rdy);
+  const L = PLAYER_XY_LIMIT;
+  const px = playerPos.x;
+  const py = playerPos.y;
+
+  const warp = tryJudgmentOppositeWarp(px, py, dir.rdx, dir.rdy, L, PERIM_EDGE_EPS);
+  if (warp) {
+    playerPos.x = snapCoordToHalfGrid(warp.x);
+    playerPos.y = snapCoordToHalfGrid(warp.y);
+    return;
+  }
+  const step = discreteStepAlongEdge(px, py, Math.sign(dir.rdx) || 0, Math.sign(dir.rdy) || 0, L, PERIM_EDGE_EPS);
+  if (step) {
+    playerPos.x = step.x;
+    playerPos.y = step.y;
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  ensureAudio();
+  if (e.code === 'Space') {
+    if (tutorialPause) {
+      const blocked = closeGuideByInput(true);
+      if (!blocked && holeState === 'charged') triggerBlackHoleExplosion();
+      e.preventDefault();
+      return;
+    }
+    if (gameOver) { restartGame(); e.preventDefault(); return; }
+    if (holeState === 'charged') { triggerBlackHoleExplosion(); e.preventDefault(); return; }
+    e.preventDefault();
+    return;
+  }
+  if (MOVE_KEY_CODES.has(e.code)) {
+    if (tutorialPause) {
+      closeGuideByInput(false);
+      e.preventDefault();
+      return;
+    }
+    playerMoveFromKey(e.code);
+    e.preventDefault();
+  }
+});
+
+// 移動端滑動操作：上下左右 swipe 等同鍵盤方向
+let touchStartX = 0;
+let touchStartY = 0;
+window.addEventListener('touchstart', (e) => {
+  if (!e.touches || e.touches.length === 0) return;
+  ensureAudio();
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+  if (!e.changedTouches || e.changedTouches.length === 0) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (Math.max(ax, ay) < 28) return;
+  if (ax > ay) playerMoveFromKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+  else playerMoveFromKey(dy > 0 ? 'ArrowDown' : 'ArrowUp');
+  e.preventDefault();
+}, { passive: false });
+
+function restartGame() {
+  gameOver = false;
+  score = 0;
+  time = 0;
+  lives = 3;
+  levelHitCount = 0;
+  firstWaveCompleted = false;
+  firstCubeTimer = 0;
+  tutorialPause = false;
+  activeGuide = null;
+  tutorialSeen.yellow = false;
+  tutorialSeen.red = false;
+  currentLevel = 1;
+  currentWaveIndex = 0;
+  const s0 = playerSpawnOnJudgmentEdge();
+  playerPos.x = s0.x; playerPos.y = s0.y;
+  gameoverEl.style.display = 'none';
+  for (const c of rollingCubes) c.dispose();
+  rollingCubes.length = 0;
+  lastWavePlayerTrack = null;
+  globalSlowUntil = 0;
+  isBreathing = false;
+  breathUntilTime = 0;
+  trackingMissCount = 0;
+  trackingThreshold = 3 + ((Math.random() * 3) | 0);
+  trackingLastSide = null;
+  trackingLastLane = -1;
+  trackingEnabled = true;
+  resetHoleState();
+  for (const c of _holeExplodingCubes) c.dispose();
+  _holeExplodingCubes = [];
+  guideOverlayEl.classList.remove('show');
+  guideOverlayEl.classList.remove('hole-open');
+  guideCardEl.classList.remove('guide-focus');
+  voidUiEl.classList.remove('guide-focus', 'void-full');
+  updateLivesUI();
+  scoreEl.textContent = score;
+  updateLevelUI();
+  generateWave();
+}
+
+function jumpToLevel(lv) {
+  gameOver = false;
+  score = 0;
+  time = 0;
+  lives = 3;
+  levelHitCount = 0;
+  firstWaveCompleted = false;
+  firstCubeTimer = 0;
+  tutorialPause = false;
+  activeGuide = null;
+  tutorialSeen.yellow = false;
+  tutorialSeen.red = false;
+  currentLevel = lv;
+  currentWaveIndex = 0;
+  const s0 = playerSpawnOnJudgmentEdge();
+  playerPos.x = s0.x; playerPos.y = s0.y;
+  gameoverEl.style.display = 'none';
+  for (const c of rollingCubes) c.dispose();
+  rollingCubes.length = 0;
+  lastWavePlayerTrack = null;
+  globalSlowUntil = 0;
+  isBreathing = false;
+  breathUntilTime = 0;
+  trackingMissCount = 0;
+  trackingThreshold = 3 + ((Math.random() * 3) | 0);
+  trackingLastSide = null;
+  trackingLastLane = -1;
+  trackingEnabled = true;
+  resetHoleState();
+  for (const c of _holeExplodingCubes) c.dispose();
+  _holeExplodingCubes = [];
+  guideOverlayEl.classList.remove('show');
+  guideOverlayEl.classList.remove('hole-open');
+  guideCardEl.classList.remove('guide-focus');
+  voidUiEl.classList.remove('guide-focus', 'void-full');
+  updateLivesUI();
+  scoreEl.textContent = score;
+  updateLevelUI();
+  generateWave();
+}
+
+// 初始化開發者面板
+{
+  const panel = document.getElementById('dev-panel');
+  const maxLv = Object.keys(LEVEL_DEFS).length;
+  for (let lv = 1; lv <= maxLv; lv++) {
+    const btn = document.createElement('button');
+    btn.textContent = 'Lv.' + lv;
+    btn.addEventListener('click', () => {
+      jumpToLevel(lv);
+      document.getElementById('dev-toggle').style.display = 'inline-block';
+      panel.style.display = 'none';
+    });
+    panel.appendChild(btn);
+  }
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.color = '#f55';
+  closeBtn.addEventListener('click', () => {
+    document.getElementById('dev-toggle').style.display = 'inline-block';
+    panel.style.display = 'none';
+  });
+  panel.appendChild(closeBtn);
+}
+
+/** 金色拾取(分數翻倍) & 紅色減速(全局 0.5x 持續 4.5s) */
+function tryCollectSpecials() {
+  const px = playerPos.x;
+  const py = playerPos.y;
+  const L = PLAYER_XY_LIMIT;
+  // 特殊方塊用所有玩家所在軌道判定，避免角落時主軌誤判漏掉
+  const tracks = getPlayerTracks(px, py, L, PERIM_EDGE_EPS);
+  if (tracks.length === 0) return;
+
+  const hw = CUBE_EDGE * 0.5;
+
+  for (let i = rollingCubes.length - 1; i >= 0; i--) {
+    const cube = rollingCubes[i];
+    if ((!cube.isPickup && !cube.isSlowdown && !cube.isRainbow) || cube.collected || !cube.visible) continue;
+
+    // 只要玩家在任意一條軌道上與此方塊同側同lane即可觸發
+    const onTrack = tracks.some(t => t.side === cube.side && t.lane === cube.lane);
+    if (!onTrack) continue;
+
+    const zc = -cube.depth;
+    const whiteNearZ = zc + hw;
+    const whiteFarZ = zc - hw;
+    if (whiteNearZ < PLAYER_Z) continue;
+    if (whiteFarZ > PLAYER_Z) continue;
+
+    if (!planarOverlapSameTrackOnly(cube, px, py)) continue;
+
+    cube.collected = true;
+    const wc = cube.getWorldCenter();
+    if (cube.isRainbow) {
+      addScore(1000, '+1000', '#66ffff');
+      spawnParticles(wc, cube.cubeFadeMat.color || new THREE.Color(0x66ffff), 46, 4.2);
+      playScoreSound();
+    } else if (cube.isPickup) {
+      addScore(5000, '+5000', '#ffd700');
+      spawnParticles(wc, new THREE.Color(0xffd700), 62, 5.0);
+      playScoreSound();
+    } else if (cube.isSlowdown) {
+      globalSlowUntil = time + GLOBAL_SLOW_DURATION;
+    }
+    cube.dispose();
+    rollingCubes.splice(i, 1);
+  }
+}
+
+// ── Collision：僅「當下主軌」上的白方塊 + 判定面 z 帶 + 同軌平面重疊；其他軌道幾何重疊一律不計
+function checkCollision() {
+  const px = playerPos.x;
+  const py = playerPos.y;
+  const L = PLAYER_XY_LIMIT;
+  const track = getDominantPlayerTrack(px, py, L, PERIM_EDGE_EPS);
+  if (!track) return false;
+
+  const hw = CUBE_EDGE * 0.5;
+  const hg = PLAYER_CUBE_SIZE * 0.5;
+
+  for (const cube of rollingCubes) {
+    if (!cube.visible || cube.isPickup || cube.isSlowdown || cube.isRainbow) continue;
+    if (cube.side !== track.side || cube.lane !== track.lane) continue;
+
+    const zc = -cube.depth;
+    const whiteNearZ = zc + hw;
+    const whiteFarZ = zc - hw;
+    if (whiteNearZ < PLAYER_Z) continue;
+    if (whiteFarZ > PLAYER_Z) continue;
+
+    if (!planarOverlapSameTrackOnly(cube, px, py)) continue;
+    return true;
+  }
+  return false;
+}
+
+function handleHazardCollisions() {
+  const px = playerPos.x;
+  const py = playerPos.y;
+  const L = PLAYER_XY_LIMIT;
+  const track = getDominantPlayerTrack(px, py, L, PERIM_EDGE_EPS);
+  if (!track) return;
+
+  const hw = CUBE_EDGE * 0.5;
+  for (let i = rollingCubes.length - 1; i >= 0; i--) {
+    const cube = rollingCubes[i];
+    if (!cube.visible || cube.isPickup || cube.isSlowdown || cube.isRainbow || cube.collected) continue;
+    if (cube.side !== track.side || cube.lane !== track.lane) continue;
+
+    const zc = -cube.depth;
+    const whiteNearZ = zc + hw;
+    const whiteFarZ = zc - hw;
+    if (whiteNearZ < PLAYER_Z) continue;
+    if (whiteFarZ > PLAYER_Z) continue;
+    if (!planarOverlapSameTrackOnly(cube, px, py)) continue;
+
+    cube.collected = true;
+    levelHitCount++;
+    lives = Math.max(0, lives - 1);
+    holeValue = Math.floor(holeValue * 0.5);
+    if (holeValue < HOLE_MAX && holeState === 'charged') {
+      holeState = 'idle';
+      voidUiEl.classList.remove('void-full');
+    }
+    updateLivesUI();
+    showFloatingText('-1 HEART', '#ff3355');
+    playHitSound();
+    flashHitFace(cube);
+    spawnParticles(cube.getWorldCenter(), new THREE.Color(0xff2233), 70, 5.2);
+    cube.dispose();
+    rollingCubes.splice(i, 1);
+
+    if (lives <= 0) {
+      gameOver = true;
+      gameoverEl.style.display = 'block';
+      finalscoreEl.textContent = score;
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('gridTunnelBestScore', String(bestScore));
+      }
+      bestScoreEl.textContent = bestScore;
+      return;
+    }
+  }
+}
+
+function scoreNearMisses() {
+  const track = getDominantPlayerTrack(playerPos.x, playerPos.y, PLAYER_XY_LIMIT, PERIM_EDGE_EPS);
+  if (!track) return;
+  const passDepth = -PLAYER_Z + CUBE_EDGE * 0.5;
+  for (const cube of rollingCubes) {
+    if (cube.isPickup || cube.isSlowdown || cube.isRainbow || cube.collected || cube._nearMissScored) continue;
+    if (cube.depth < passDepth) continue;
+    cube._nearMissScored = true;
+    if (cube.side === track.side && Math.abs(cube.lane - track.lane) <= 1 && cube.lane !== track.lane) {
+      score += 50;
+      scoreEl.textContent = score;
+      showNearTrackText('SO CLOSE +50', cube, '#66ffff');
+    }
+  }
+}
+
+// ── Main loop ──
+updateLevelUI();
+updateLivesUI();
+scoreEl.textContent = score;
+generateWave();
+const clock = new THREE.Clock();
+
+// ── DOM 元素快取 ──
+const voidBarEl = document.getElementById('void-bar');
+const voidHintEl = document.getElementById('void-charged-hint');
+const voidLabelEl = document.getElementById('void-label');
+
+// GSAP easing 控制視覺狀態；遊戲邏輯仍由 holeState/holeValue 控制
+const holeMotion = {
+  charge: 0,
+  tileAlpha: 0,
+  fluidOpacity: 0,
+  burst: 0,
+  inputX: 0,
+  inputY: 0,
+};
+const easeHoleCharge = gsap.quickTo(holeMotion, 'charge', { duration: 0.7, ease: 'power3.out' });
+const easeTileAlpha = gsap.quickTo(holeMotion, 'tileAlpha', { duration: 0.55, ease: 'sine.out' });
+const easeFluidOpacity = gsap.quickTo(holeMotion, 'fluidOpacity', { duration: 0.7, ease: 'power3.out' });
+const easeBurst = gsap.quickTo(holeMotion, 'burst', { duration: 0.35, ease: 'power4.out' });
+
+const HOLE_PALETTES = [
+  [0x00ffee, 0x1238ff, 0x00ff55, 0xff1177],
+  [0xff0066, 0x7b2cff, 0x00d9ff, 0xffd000],
+  [0x22ff88, 0x004dff, 0xf000ff, 0xff5a00],
+  [0x66ff00, 0x00e5ff, 0x4455ff, 0xff00aa],
+  [0xffcc00, 0xff2266, 0x00ffaa, 0x2a4bff],
+  [0x00ffcc, 0xff00cc, 0xffee00, 0x00a2ff],
+];
+
+function randomizeBlackHoleLook() {
+  const palette = HOLE_PALETTES[(Math.random() * HOLE_PALETTES.length) | 0];
+  holeFluidUniforms.uPaletteA.value.setHex(palette[0]);
+  holeFluidUniforms.uPaletteB.value.setHex(palette[1]);
+  holeFluidUniforms.uPaletteC.value.setHex(palette[2]);
+  holeFluidUniforms.uPaletteD.value.setHex(palette[3]);
+  holeFluidUniforms.uFlowSeed.value.set(
+    Math.random(),
+    Math.random(),
+    Math.random(),
+    Math.random()
+  );
+}
+
+function nudgeBlackHoleFlow(dx, dy) {
+  if (holeState === 'exploding' || holeState === 'rainbow') return;
+  const influence = 1.15;
+  const targetX = Math.max(-1.8, Math.min(1.8, holeMotion.inputX + Math.sign(dx) * influence));
+  const targetY = Math.max(-1.8, Math.min(1.8, holeMotion.inputY + Math.sign(dy) * influence));
+  gsap.to(holeMotion, {
+    inputX: targetX,
+    inputY: targetY,
+    duration: 0.18,
+    ease: 'power4.out',
+    overwrite: 'auto',
+    onComplete: () => {
+      gsap.to(holeMotion, {
+        inputX: 0,
+        inputY: 0,
+        duration: 1.9,
+        ease: 'power2.out',
+        overwrite: 'auto',
+      });
+    },
+  });
+}
+
+randomizeBlackHoleLook();
+
+function updateHoleVisual(t) {
+  const ratio = holeValue / HOLE_MAX;
+  easeHoleCharge(ratio);
+  easeTileAlpha(0);
+  easeFluidOpacity(holeState === 'rainbow' ? 0 : Math.min(0.92, 0.16 + ratio * 0.76));
+  easeBurst(holeState === 'exploding' ? 1 : 0);
+  const ptPos = holePtGeo.attributes.position.array;
+  const ptCol = holePtGeo.attributes.color.array;
+  const easedRatio = holeMotion.charge;
+  const shaderCharge = easedRatio * 2.0; // UI 滿值=100%，黑洞飽和度滿值=200%
+  const tileVisCount = Math.floor(easedRatio * HOLE_TILE_COUNT);
+
+  holeFluidUniforms.uTime.value = t;
+  holeFluidUniforms.uCharge.value = shaderCharge;
+  holeFluidUniforms.uOpacity.value = holeMotion.fluidOpacity;
+  holeFluidUniforms.uBurst.value = holeMotion.burst;
+  holeFluidUniforms.uInput.value.set(holeMotion.inputX, holeMotion.inputY);
+  holeTileUniforms.uTime.value = t;
+  holeTileUniforms.uAlpha.value = holeMotion.tileAlpha;
+  holeTileUniforms.uCharge.value = easedRatio;
+  holeTileUniforms.uBurst.value = holeMotion.burst;
+
+  if (holeState === 'idle' || holeState === 'charged') {
+    // 小方塊/粒子層已移除，這裡只保留高濃度 GLSL 流體煙霧。
+    holePtMat.opacity = 0;
+    holeTileUniforms.uAlpha.value = 0;
+    if (holeState === 'charged') {
+      // 邊框閃爍
+      const pulse = 0.5 + 0.5 * Math.sin(t * 10);
+      holeFrameMat.opacity = 0.4 + pulse * 0.55;
+      holeFrameMat.color.setHSL(0.52 + pulse * 0.1, 1, 0.6 + pulse * 0.2);
+      holeThickFrameMat.opacity = 0.45 + pulse * 0.55;
+      holeThickFrameMat.color.setHSL(0.72 + pulse * 0.16, 1, 0.72);
+      holeThickFrameGroup.scale.setScalar(1 + pulse * 0.05);
+      holeFluidUniforms.uOpacity.value = 1.0 + pulse * 0.2;
+      holeFluidUniforms.uCharge.value = 2.0;
+      voidHintEl.style.opacity = String(0.6 + pulse * 0.4);
+      voidBarEl.style.background = `hsl(${40 + pulse * 30}, 100%, ${55 + pulse * 15}%)`;
+    } else {
+      holeFrameMat.opacity = 0.15 + easedRatio * 0.3;
+      holeFrameMat.color.setHex(0x00ffcc);
+      holeThickFrameMat.opacity = 0;
+      holeThickFrameGroup.scale.setScalar(1);
+      voidHintEl.style.opacity = '0';
+      const pct = Math.round(easedRatio * 100);
+      voidBarEl.style.background = `linear-gradient(90deg, #00ffcc ${pct}%, #aa44ff)`;
+    }
+
+    voidBarEl.style.width = `${easedRatio * 100}%`;
+
+  } else if (holeState === 'exploding') {
+    // 粒子向外爆散
+    const progress = 1 - (explodeTimer / EXPLODE_DURATION);
+    for (let i = 0; i < HOLE_PARTICLE_COUNT; i++) {
+      ptPos[i*3]   = holePtBasePos[i*3]   + holePtVelocities[i*3]   * progress * 0.4;
+      ptPos[i*3+1] = holePtBasePos[i*3+1] + holePtVelocities[i*3+1] * progress * 0.4;
+      ptPos[i*3+2] = holePtBasePos[i*3+2] + holePtVelocities[i*3+2] * progress * 0.4;
+      // 爆炸時全彩
+      const c = new THREE.Color().setHSL((i / HOLE_PARTICLE_COUNT + progress * 0.5) % 1, 1.0, 0.7);
+      ptCol[i*3]   = c.r;
+      ptCol[i*3+1] = c.g;
+      ptCol[i*3+2] = c.b;
+    }
+    holePtGeo.attributes.position.needsUpdate = true;
+    holePtGeo.attributes.color.needsUpdate = true;
+    holePtMat.opacity = Math.max(0, 1.0 - progress);
+    holeFluidUniforms.uOpacity.value = Math.max(0, 0.45 - progress * 0.35);
+    holeFluidUniforms.uBurst.value = Math.max(holeFluidUniforms.uBurst.value, 1.0 - progress * 0.25);
+    holeFrameMat.opacity = Math.max(0, 1.0 - progress * 1.5);
+    holeThickFrameMat.opacity = Math.max(0, 1.0 - progress * 1.4);
+    for (let i = 0; i < HOLE_TILE_COUNT; i++) {
+      const bx = holeTileBase[i*3];
+      const by = holeTileBase[i*3+1];
+      const bz = holeTileBase[i*3+2];
+      const x = bx + holeTileVelocity[i*3] * progress * 0.45;
+      const y = by + holeTileVelocity[i*3+1] * progress * 0.45;
+      const z = bz + holeTileVelocity[i*3+2] * progress * 0.45;
+      const sc = Math.max(0.001, 0.42 - progress * 0.38);
+      _holeTileMatrix.identity();
+      _holeTileMatrix.makeScale(sc, sc, sc);
+      _holeTileMatrix.setPosition(x, y, z);
+      holeTileMesh.setMatrixAt(i, _holeTileMatrix);
+      _holeTileColor.setHSL((i / HOLE_TILE_COUNT + progress * 0.7) % 1, 1.0, 0.65);
+      holeTileMesh.setColorAt(i, _holeTileColor);
+    }
+    holeTileMesh.instanceMatrix.needsUpdate = true;
+    if (holeTileMesh.instanceColor) holeTileMesh.instanceColor.needsUpdate = true;
+    holeTileUniforms.uAlpha.value = Math.max(0, 0.9 - progress * 0.75);
+    voidBarEl.style.width = `${(1 - progress) * 100}%`;
+    voidBarEl.style.background = '#ff3333';
+    voidHintEl.style.opacity = '0';
+
+  } else if (holeState === 'rainbow') {
+    // 耗盡狀態，粒子消散
+    holePtMat.opacity = Math.max(0, holePtMat.opacity - 0.02);
+    holeTileUniforms.uAlpha.value = holeMotion.tileAlpha;
+    holeFluidUniforms.uOpacity.value = holeMotion.fluidOpacity;
+    holeFrameMat.opacity = 0.08;
+    holeThickFrameMat.opacity = 0;
+    holeFrameMat.color.setHex(0x00ffcc);
+    voidBarEl.style.width = '0%';
+    voidHintEl.style.opacity = '0';
+  }
+}
+
+function updateCyberPulse(t) {
+  collisionRingMat.color.setHSL(0.52 + 0.12 * Math.sin(t * 1.9), 0.95, 0.52 + 0.08 * Math.sin(t * 2.7));
+  collisionRingMat.opacity = 0.72 + 0.22 * Math.sin(t * 2.3);
+  frameMat.color.setHSL(0.58 + 0.08 * Math.sin(t * 1.4), 0.75, 0.38 + 0.06 * Math.sin(t * 2.1));
+  frameMat.opacity = 0.12 + 0.08 * Math.sin(t * 1.7);
+  gridMat.color.setHSL(0.48 + 0.1 * Math.sin(t * 2.5), 0.85, 0.55);
+  gridMat.opacity = 0.18 + 0.12 * Math.sin(t * 1.85);
+  starMat.opacity = 0.5 + 0.22 * Math.sin(t * 1.55);
+  starMat.color.setHSL(0.55 + 0.15 * Math.sin(t * 0.9), 0.6, 0.75);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const rawDt = Math.min(clock.getDelta(), 0.05);
+
+  if (!gameOver) {
+    if (tutorialPause) {
+      const elapsed = clock.getElapsedTime();
+      updateCyberPulse(elapsed);
+      updateHoleVisual(elapsed);
+      renderer.render(scene, camera);
+      return;
+    }
+
+    time += rawDt;
+
+    if (!tutorialSeen.avoid) {
+      firstCubeTimer += rawDt;
+      if (firstCubeTimer >= 1.5) {
+        tutorialSeen.avoid = true;
+        showGuide('avoid', 'Avoid White Cubes!', '', { keys: true });
+      }
+    }
+
+    if (isBreathing && holeState !== 'exploding' && holeState !== 'rainbow') {
+      if (time >= breathUntilTime) {
+        isBreathing = false;
+        generateWave();
+      }
+    }
+
+    const slowActive = globalSlowUntil > time;
+    const dtEff = slowActive ? rawDt * GLOBAL_SLOW_MUL : rawDt;
+
+    playerGroup.position.set(playerPos.x, playerPos.y, PLAYER_Z);
+
+    // 特殊方塊教學：在首個黃/紅方塊進場前 1 秒內提示
+    if (!tutorialPause) {
+      for (const cube of rollingCubes) {
+        if (!tutorialSeen.yellow && cube.isPickup && cube.delay <= 1) {
+          tutorialSeen.yellow = true;
+          showGuide('yellow', 'Yellow Cube', 'Hit yellow cubes for bonus points.', { keys: false });
+          break;
+        }
+        if (!tutorialSeen.red && cube.isSlowdown && cube.delay <= 1) {
+          tutorialSeen.red = true;
+          showGuide('red', 'Red Cube', 'Hit red cubes for extra time.', { keys: false });
+          break;
+        }
+      }
+    }
+
+    for (const cube of rollingCubes) cube.update(dtEff);
+    updateFx(rawDt);
+
+    // ── 即時追蹤力 ──
+    // 每當一個方塊進場（justEntered），檢查玩家是否仍在同一軌道
+    // 如果連續 N 個方塊進場且玩家位置未被覆蓋，把下一個即將進場的方塊重定向
+    {
+      const pTrack = getDominantPlayerTrack(playerPos.x, playerPos.y, PLAYER_XY_LIMIT, PERIM_EDGE_EPS);
+      for (const cube of rollingCubes) {
+        if (!cube.justEntered) continue;
+        cube.justEntered = false;
+
+        if (!tutorialSeen.yellow && cube.isPickup) {
+          tutorialSeen.yellow = true;
+          showGuide('yellow', 'Yellow Cube', 'Hit yellow cubes for bonus points.', { keys: false });
+        } else if (!tutorialSeen.red && cube.isSlowdown) {
+          tutorialSeen.red = true;
+          showGuide('red', 'Red Cube', 'Hit red cubes for extra time.', { keys: false });
+        }
+
+        const remainingTrackable = rollingCubes.reduce((count, c) => {
+          if (c.doneRollingOut || c.collected || c.isPickup || c.isSlowdown || c.isRainbow) return count;
+          return count + 1;
+        }, 0);
+        if (remainingTrackable <= 2) {
+          // 每波倒數第 2 個立方體開始，關閉「下一顆追蹤玩家」功能
+          trackingEnabled = false;
+          trackingMissCount = 0;
+        }
+
+        if (!pTrack) continue;
+        if (!trackingEnabled) continue;
+        if (cube.isPickup || cube.isSlowdown) continue;
+
+        // 玩家換了軌道 → 重置計數
+        if (pTrack.side !== trackingLastSide || pTrack.lane !== trackingLastLane) {
+          trackingLastSide = pTrack.side;
+          trackingLastLane = pTrack.lane;
+          trackingMissCount = 0;
+          trackingThreshold = 3 + ((Math.random() * 3) | 0);
+        }
+
+        if (cube.side === pTrack.side && cube.lane === pTrack.lane) {
+          trackingMissCount = 0;
+        } else {
+          trackingMissCount++;
+          if (trackingMissCount >= trackingThreshold) {
+            // 檢查玩家軌道是否已有活躍方塊在場
+            const playerTrackBusy = rollingCubes.some(c =>
+              c !== cube && !c.doneRollingOut && c.delay <= 0 &&
+              c.side === pTrack.side && c.lane === pTrack.lane
+            );
+            if (!playerTrackBusy) {
+              let redirected = false;
+              for (const pending of rollingCubes) {
+                if (pending.delay > 0 && !pending.isPickup && !pending.isSlowdown && !pending.doneRollingOut) {
+                  pending.relocate(pTrack.side, pTrack.lane);
+                  redirected = true;
+                  break;
+                }
+              }
+              if (!redirected) {
+                cube.relocate(pTrack.side, pTrack.lane);
+              }
+            }
+            trackingMissCount = 0;
+            trackingThreshold = 3 + ((Math.random() * 3) | 0);
+          }
+        }
+      }
+    }
+
+    // ── 爆炸中的方塊（已移出 rollingCubes，獨立更新）──
+    if (_holeExplodingCubes.length > 0) {
+      for (let i = _holeExplodingCubes.length - 1; i >= 0; i--) {
+        _holeExplodingCubes[i].update(rawDt);
+        if (_holeExplodingCubes[i].doneRollingOut) {
+          _holeExplodingCubes[i].dispose();
+          _holeExplodingCubes.splice(i, 1);
+        }
+      }
+    }
+
+    // ── Space 後白盒子 Shader 粒子爆炸 ──
+    if (whiteExplodeActive) {
+      whiteExplodeTimer += rawDt * 1.25;
+      whiteExplodeUniforms.uTime.value = whiteExplodeTimer;
+      whiteExplodeUniforms.uOpacity.value = Math.max(0, 1 - whiteExplodeTimer);
+      if (whiteExplodeTimer >= 1.05) {
+        whiteExplodeActive = false;
+        whiteExplodeCount = 0;
+        whiteExplodeUniforms.uOpacity.value = 0;
+        whiteExplodeGeo.setDrawRange(0, 0);
+      }
+    }
+
+    // ── 黑洞爆炸計時 ──
+    if (holeState === 'exploding') {
+      explodeTimer -= rawDt;
+      if (explodeTimer <= 0) {
+        holeState = 'rainbow';
+        // 清空剩餘爆炸方塊
+        for (const c of _holeExplodingCubes) c.dispose();
+        _holeExplodingCubes = [];
+        rollingCubes.length = 0;
+        generateRainbowWave();
+      }
+    }
+
+    // 清除已滾出畫面的方塊（同時計入黑洞值）
+    for (let i = rollingCubes.length - 1; i >= 0; i--) {
+      if (rollingCubes[i].doneRollingOut) {
+        const cube = rollingCubes[i];
+        if (!cube.isPickup && !cube.isSlowdown && !cube.isRainbow && !cube.collected) {
+          addScore(10);
+        }
+        rollingCubes[i].dispose();
+        rollingCubes.splice(i, 1);
+        // 計入黑洞（idle/charged 狀態下，非七彩方塊才計入）
+        if (holeState === 'idle' || holeState === 'charged') {
+          holeValue = Math.min(HOLE_MAX, holeValue + 1);
+          if (holeValue >= HOLE_MAX && holeState === 'idle') {
+            holeState = 'charged';
+            voidUiEl.classList.add('void-full');
+            if (!tutorialSeen.voidFull) {
+              tutorialSeen.voidFull = true;
+              showGuide('voidFull', 'Heat Death Ready', 'Press Space to enter the Heat Death - Collect colors to score!', { keys: false, hint: 'PRESS SPACE TO CONTINUE', focusVoid: true, focusHole: true });
+            }
+          }
+        }
+      }
+    }
+
+    scoreNearMisses();
+    // ── 七彩波結束後恢復關卡 ──
+    if (holeState === 'rainbow' && rollingCubes.length === 0 && !isBreathing) {
+      resetHoleState();
+      generateWave();
+    }
+
+    tryCollectSpecials();
+    scoreEl.textContent = score;
+    handleHazardCollisions();
+
+    if (!gameOver && holeState !== 'rainbow' && holeState !== 'exploding' && !isBreathing && rollingCubes.length === 0) {
+      advanceWaveOrLevel();
+    }
+  }
+
+  const elapsed = clock.getElapsedTime();
+  updateCyberPulse(elapsed);
+  updateHoleVisual(elapsed);
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
