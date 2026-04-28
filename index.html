@@ -168,12 +168,12 @@ canvas { display: block; }
 }
 #bestscore-line { font-size: 18px; margin-top: 10px; color: #66ffff; letter-spacing: 1px; }
 #start-screen {
-  position: fixed; inset: 0; z-index: 130; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 130; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   overflow: hidden; background:
     radial-gradient(circle at 50% 45%, rgba(0,255,220,0.18), transparent 26%),
     radial-gradient(circle at 62% 54%, rgba(170,68,255,0.2), transparent 32%),
     linear-gradient(180deg, rgba(0,0,0,0.78), rgba(3,0,18,0.92));
-  backdrop-filter: blur(5px);
+  padding-top: 17vh; backdrop-filter: blur(5px);
 }
 #start-screen .start-smoke {
   position: absolute; inset: -16%; pointer-events: none; opacity: 0.44;
@@ -208,7 +208,7 @@ canvas { display: block; }
 }
 #start-card {
   position: relative; z-index: 1; width: min(360px, 78vw); padding: 18px 22px; text-align: center;
-  margin-top: 28px;
+  margin-top: 34px;
   background: linear-gradient(135deg, rgba(0,24,32,0.52), rgba(40,0,54,0.42));
   border: 1px solid rgba(0,255,220,0.48); border-radius: 22px;
   box-shadow: 0 0 70px rgba(0,255,220,0.24), 0 0 120px rgba(170,68,255,0.2), inset 0 0 36px rgba(255,255,255,0.05);
@@ -227,6 +227,11 @@ canvas { display: block; }
   box-shadow: 0 0 28px rgba(0,255,220,0.72), 0 0 58px rgba(255,216,107,0.24);
 }
 #start-button:hover { filter: brightness(1.18) saturate(1.2); transform: translateY(-1px); }
+#start-credit {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  z-index: 1; color: rgba(234,255,255,0.72); font-size: 13px; letter-spacing: 3px;
+  text-transform: uppercase; text-shadow: 0 0 16px rgba(0,255,220,0.62), 0 0 32px rgba(170,68,255,0.34);
+}
 </style>
 </head>
 <body>
@@ -236,8 +241,9 @@ canvas { display: block; }
   <div class="start-smoke alt"></div>
   <div id="start-title">Naughty Entropy</div>
   <div id="start-card">
-    <button id="start-button" type="button">Start</button>
+    <button id="start-button" type="button">Start game</button>
   </div>
+  <div id="start-credit">Made by Roostar</div>
 </div>
 <div id="ui"><div id="level">Lv.1</div><div id="score">0</div><div id="lives">♥♥♥</div></div>
 <div id="floating-text"></div>
@@ -255,7 +261,7 @@ canvas { display: block; }
       <div class="keycap blank"></div><div class="keycap">↑</div><div class="keycap blank"></div>
       <div class="keycap">←</div><div class="keycap">↓</div><div class="keycap">→</div>
     </div>
-    <div id="guide-hint">PRESS ANY DIRECTION TO CONTINUE</div>
+    <div id="guide-hint">PRESS  TO CONTINUE</div>
   </div>
 </div>
 <button id="dev-toggle" onclick="document.getElementById('dev-panel').style.display=document.getElementById('dev-panel').style.display==='none'?'flex':'none'; this.style.display='none';">DEV</button>
@@ -2204,7 +2210,7 @@ function showGuide(type, title, body, opts = {}) {
   guideTitleEl.textContent = title;
   guideBodyEl.textContent = body;
   guideKeysEl.style.display = opts.keys === false ? 'none' : 'grid';
-  guideHintEl.textContent = opts.hint || 'PRESS ANY DIRECTION TO CONTINUE';
+  guideHintEl.textContent = opts.hint || 'PRESS  TO CONTINUE';
   guideOverlayEl.classList.add('show');
   guideOverlayEl.classList.toggle('hole-open', opts.focusHole === true);
   voidUiEl.classList.toggle('guide-focus', opts.focusVoid === true);
@@ -2223,6 +2229,15 @@ function closeGuideByInput(isSpace) {
   return false;
 }
 
+function continueGuideFromTap() {
+  if (!tutorialPause) return;
+  const asSpace = activeGuide === 'voidFull';
+  const blocked = closeGuideByInput(asSpace);
+  if (!blocked && asSpace && holeState === 'charged') triggerBlackHoleExplosion();
+}
+
+guideOverlayEl.addEventListener('pointerup', continueGuideFromTap);
+
 let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2240,7 +2255,7 @@ function startBgm() {
   bgmStarted = true;
   const ctx = audioCtx;
   bgmGain = ctx.createGain();
-  bgmGain.gain.value = 0.065;
+  bgmGain.gain.value = 0.13;
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
