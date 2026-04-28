@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grid Tunnel · Alpha1</title>
+<title>Naughty Entropy · Alpha2</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -167,10 +167,60 @@ canvas { display: block; }
   to { filter: saturate(2.3) brightness(1.35); transform: translateX(-50%) scale(1.035); }
 }
 #bestscore-line { font-size: 18px; margin-top: 10px; color: #66ffff; letter-spacing: 1px; }
+#start-screen {
+  position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; background:
+    radial-gradient(circle at 50% 45%, rgba(0,255,220,0.18), transparent 26%),
+    radial-gradient(circle at 62% 54%, rgba(170,68,255,0.2), transparent 32%),
+    linear-gradient(180deg, rgba(0,0,0,0.78), rgba(3,0,18,0.92));
+  backdrop-filter: blur(5px);
+}
+#start-screen::before,
+#start-screen::after {
+  content: ""; position: absolute; width: 68vmin; height: 68vmin; border-radius: 50%;
+  background: conic-gradient(from 90deg, rgba(0,255,220,0.0), rgba(0,255,220,0.34), rgba(170,68,255,0.42), rgba(255,216,107,0.22), rgba(0,255,220,0.0));
+  filter: blur(28px); opacity: 0.34; animation: startVortex 8s linear infinite;
+}
+#start-screen::after {
+  width: 92vmin; height: 92vmin; animation-duration: 13s; animation-direction: reverse; opacity: 0.22;
+}
+@keyframes startVortex {
+  from { transform: rotate(0deg) scale(0.92); }
+  50% { transform: rotate(180deg) scale(1.08); }
+  to { transform: rotate(360deg) scale(0.92); }
+}
+#start-card {
+  position: relative; z-index: 1; width: min(620px, 88vw); padding: 42px 34px; text-align: center;
+  background: linear-gradient(135deg, rgba(0,24,32,0.78), rgba(40,0,54,0.68));
+  border: 1px solid rgba(0,255,220,0.48); border-radius: 22px;
+  box-shadow: 0 0 70px rgba(0,255,220,0.28), 0 0 120px rgba(170,68,255,0.22), inset 0 0 42px rgba(255,255,255,0.07);
+}
+#start-title {
+  font-size: clamp(42px, 9vw, 78px); line-height: 0.95; letter-spacing: 5px; color: #f7ffff;
+  text-transform: uppercase; text-shadow: 0 0 18px rgba(0,255,220,0.95), 0 0 58px rgba(170,68,255,0.72);
+}
+#start-subtitle {
+  margin: 18px auto 30px; max-width: 460px; color: rgba(234,255,255,0.72);
+  letter-spacing: 3px; font-size: 13px; text-transform: uppercase;
+}
+#start-button {
+  font-family: inherit; font-size: 20px; letter-spacing: 5px; color: #001014; cursor: pointer;
+  padding: 15px 34px; border: 0; border-radius: 999px;
+  background: linear-gradient(90deg, #00ffcc, #ffd86b);
+  box-shadow: 0 0 28px rgba(0,255,220,0.72), 0 0 58px rgba(255,216,107,0.24);
+}
+#start-button:hover { filter: brightness(1.18) saturate(1.2); transform: translateY(-1px); }
 </style>
 </head>
 <body>
 <div id="cyber-overlay" aria-hidden="true"></div>
+<div id="start-screen">
+  <div id="start-card">
+    <div id="start-title">Naughty Entropy</div>
+    <div id="start-subtitle">Glide the golden signal through smoke, noise, and heat death.</div>
+    <button id="start-button" type="button">遊戲開始</button>
+  </div>
+</div>
 <div id="ui"><div id="level">Lv.1</div><div id="score">0</div><div id="lives">♥♥♥</div></div>
 <div id="floating-text"></div>
 <div id="gameover">GAME OVER<br>Score: <span id="finalscore">0</span><div id="bestscore-line">Best: <span id="bestscore">0</span></div><p>Press SPACE to restart</p></div>
@@ -204,7 +254,7 @@ canvas { display: block; }
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 
-const GAME_VERSION = 'Alpha1';
+const GAME_VERSION = 'Alpha2';
 if (typeof globalThis !== 'undefined') {
   globalThis.GRID_TUNNEL_VERSION = GAME_VERSION;
 }
@@ -2060,6 +2110,7 @@ const playerPos = { x: _spawn.x, y: _spawn.y };
 
 // ── Game state ──
 let gameOver = false;
+let gameStarted = false;
 let score = 0;
 let time = 0;
 let lives = 3;
@@ -2077,6 +2128,8 @@ const guideBodyEl = document.getElementById('guide-body');
 const guideKeysEl = document.getElementById('guide-keys');
 const guideHintEl = document.getElementById('guide-hint');
 const voidUiEl = document.getElementById('void-ui');
+const startScreenEl = document.getElementById('start-screen');
+const startButtonEl = document.getElementById('start-button');
 const bestScoreEl = document.getElementById('bestscore');
 let bestScore = Number(localStorage.getItem('gridTunnelBestScore') || '0');
 bestScoreEl.textContent = bestScore;
@@ -2107,9 +2160,9 @@ function showFloatingText(text, color) {
   floatingTextEl.style.color = color || '#fff';
   gsap.killTweensOf(floatingTextEl);
   gsap.fromTo(floatingTextEl,
-    { opacity: 0, y: 20, scale: 0.85 },
-    { opacity: 1, y: 0, scale: 1.1, duration: 0.18, ease: 'power2.out',
-      onComplete: () => gsap.to(floatingTextEl, { opacity: 0, y: -28, scale: 1, delay: 0.45, duration: 0.35, ease: 'power2.in' }) }
+    { opacity: 0, x: 0, y: 20, scale: 0.85 },
+    { opacity: 1, x: 0, y: 0, scale: 1.1, duration: 0.18, ease: 'power2.out',
+      onComplete: () => gsap.to(floatingTextEl, { opacity: 0, x: 0, y: -28, scale: 1, delay: 0.45, duration: 0.35, ease: 'power2.in' }) }
   );
 }
 
@@ -2169,7 +2222,7 @@ function startBgm() {
   bgmStarted = true;
   const ctx = audioCtx;
   bgmGain = ctx.createGain();
-  bgmGain.gain.value = 0.028;
+  bgmGain.gain.value = 0.065;
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -2190,7 +2243,7 @@ function startBgm() {
     const osc = ctx.createOscillator();
     osc.type = oscTypes[i];
     const g = ctx.createGain();
-    g.gain.value = i === 0 ? 0.018 : 0.012;
+    g.gain.value = i === 0 ? 0.022 : 0.016;
     osc.connect(g).connect(bgmGain);
     osc.start();
     bgmOscs.push(osc);
@@ -2257,6 +2310,30 @@ function playHitSound() {
   osc.stop(now + 0.38);
 }
 
+let lastMoveSoundAt = 0;
+function playMoveSound() {
+  const ctx = ensureAudio();
+  const now = ctx.currentTime;
+  if (now - lastMoveSoundAt < 0.045) return;
+  lastMoveSoundAt = now;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  osc.type = 'square';
+  filter.type = 'bandpass';
+  filter.frequency.value = 1100;
+  filter.Q.value = 5.5;
+  osc.frequency.setValueAtTime(420, now);
+  osc.frequency.exponentialRampToValueAtTime(760, now + 0.055);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.035, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.105);
+  osc.connect(filter).connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.12);
+}
+
 const MOVE_KEY_CODES = new Set([
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
   'KeyA', 'KeyD', 'KeyW', 'KeyS',
@@ -2288,6 +2365,7 @@ function playerMoveFromKey(code) {
     if (dir0) closeGuideByInput(false);
     return;
   }
+  if (!gameStarted) return;
   if (gameOver) return;
   const dir = inputCodeToDir(code);
   if (!dir) return;
@@ -2301,12 +2379,14 @@ function playerMoveFromKey(code) {
   if (warp) {
     playerPos.x = snapCoordToHalfGrid(warp.x);
     playerPos.y = snapCoordToHalfGrid(warp.y);
+    playMoveSound();
     return;
   }
   const step = discreteStepAlongEdge(px, py, Math.sign(dir.rdx) || 0, Math.sign(dir.rdy) || 0, L, PERIM_EDGE_EPS);
   if (step) {
     playerPos.x = step.x;
     playerPos.y = step.y;
+    playMoveSound();
   }
 }
 
@@ -2358,6 +2438,7 @@ window.addEventListener('touchend', (e) => {
 }, { passive: false });
 
 function restartGame() {
+  gameStarted = true;
   gameOver = false;
   score = 0;
   time = 0;
@@ -2397,6 +2478,15 @@ function restartGame() {
   updateLevelUI();
   generateWave();
 }
+
+function startGameFromIntro() {
+  if (gameStarted) return;
+  startScreenEl.style.display = 'none';
+  try { ensureAudio(); } catch (_) {}
+  restartGame();
+}
+
+startButtonEl.addEventListener('click', startGameFromIntro);
 
 function jumpToLevel(lv) {
   gameOver = false;
@@ -2605,7 +2695,6 @@ function scoreNearMisses() {
 updateLevelUI();
 updateLivesUI();
 scoreEl.textContent = score;
-generateWave();
 const clock = new THREE.Clock();
 
 // ── DOM 元素快取 ──
@@ -2794,6 +2883,14 @@ function updateCyberPulse(t) {
 function animate() {
   requestAnimationFrame(animate);
   const rawDt = Math.min(clock.getDelta(), 0.05);
+
+  if (!gameStarted) {
+    const elapsed = clock.getElapsedTime();
+    updateCyberPulse(elapsed);
+    updateHoleVisual(elapsed);
+    renderer.render(scene, camera);
+    return;
+  }
 
   if (!gameOver) {
     if (tutorialPause) {
