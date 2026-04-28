@@ -215,11 +215,16 @@ canvas { display: block; }
   backdrop-filter: blur(9px);
 }
 #start-title {
-  position: absolute; left: 50%; top: 24vh; transform: translateX(-50%);
-  z-index: 1; text-align: center; width: min(960px, 92vw);
-  font-size: clamp(52px, 11vw, 112px); line-height: 0.9; letter-spacing: 7px; color: #f7ffff;
-  text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(0,255,220,1), 0 0 58px rgba(170,68,255,0.82), 0 0 110px rgba(255,216,107,0.3);
+  position: absolute; left: 0; right: 0; top: 24vh;
+  z-index: 1; display: flex; justify-content: center; align-items: center; gap: clamp(14px, 2.5vw, 34px);
+  width: 100%; padding: 0 6vw; text-align: center; white-space: nowrap;
+  font-size: clamp(46px, 9.2vw, 104px); line-height: 0.9; letter-spacing: clamp(1px, 0.42vw, 5px);
+  color: #f7ffff; font-weight: 800; text-transform: none;
+  text-shadow: 0 0 16px rgba(0,255,220,1), 0 0 52px rgba(170,68,255,0.86), 0 0 120px rgba(255,216,107,0.34);
+}
+#start-title span {
+  display: inline-block;
+  filter: drop-shadow(0 0 18px rgba(0,255,220,0.62));
 }
 #start-button {
   font-family: inherit; font-size: 22px; letter-spacing: 6px; color: #001014; cursor: pointer;
@@ -240,7 +245,7 @@ canvas { display: block; }
 <div id="start-screen">
   <div class="start-smoke"></div>
   <div class="start-smoke alt"></div>
-  <div id="start-title">Naughty Entropy</div>
+  <div id="start-title"><span>Naughty</span><span>Entropy</span></div>
   <div id="start-card">
     <button id="start-button" type="button">Start Game</button>
   </div>
@@ -2232,9 +2237,32 @@ function closeGuideByInput(isSpace) {
 
 function continueGuideFromTap() {
   if (!tutorialPause) return;
+  if (activeGuide === 'voidFull') return;
+  closeGuideByInput(false);
+}
+
+function triggerSpaceAction() {
+  if (tutorialPause) {
+    const blocked = closeGuideByInput(true);
+    if (!blocked && holeState === 'charged') triggerBlackHoleExplosion();
+    return true;
+  }
+  if (gameOver) {
+    restartGame();
+    return true;
+  }
+  if (holeState === 'charged') {
+    triggerBlackHoleExplosion();
+    return true;
+  }
+  return false;
+}
+
+function triggerMobileDoubleTapSpace() {
   const asSpace = activeGuide === 'voidFull';
-  const blocked = closeGuideByInput(asSpace);
-  if (!blocked && asSpace && holeState === 'charged') triggerBlackHoleExplosion();
+  if (asSpace || holeState === 'charged' || gameOver) {
+    triggerSpaceAction();
+  }
 }
 
 guideOverlayEl.addEventListener('pointerup', continueGuideFromTap);
@@ -2256,7 +2284,7 @@ function startBgm() {
   bgmStarted = true;
   const ctx = audioCtx;
   bgmGain = ctx.createGain();
-  bgmGain.gain.value = 0.13;
+  bgmGain.gain.value = 0.39;
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -2427,14 +2455,7 @@ function playerMoveFromKey(code) {
 window.addEventListener('keydown', (e) => {
   ensureAudio();
   if (e.code === 'Space') {
-    if (tutorialPause) {
-      const blocked = closeGuideByInput(true);
-      if (!blocked && holeState === 'charged') triggerBlackHoleExplosion();
-      e.preventDefault();
-      return;
-    }
-    if (gameOver) { restartGame(); e.preventDefault(); return; }
-    if (holeState === 'charged') { triggerBlackHoleExplosion(); e.preventDefault(); return; }
+    triggerSpaceAction();
     e.preventDefault();
     return;
   }
@@ -2452,6 +2473,7 @@ window.addEventListener('keydown', (e) => {
 // 移動端滑動操作：上下左右 swipe 等同鍵盤方向
 let touchStartX = 0;
 let touchStartY = 0;
+let lastTapAt = 0;
 window.addEventListener('touchstart', (e) => {
   if (!e.touches || e.touches.length === 0) return;
   ensureAudio();
@@ -2465,7 +2487,17 @@ window.addEventListener('touchend', (e) => {
   const dy = e.changedTouches[0].clientY - touchStartY;
   const ax = Math.abs(dx);
   const ay = Math.abs(dy);
-  if (Math.max(ax, ay) < 28) return;
+  if (Math.max(ax, ay) < 28) {
+    const now = performance.now();
+    if (now - lastTapAt < 360) {
+      lastTapAt = 0;
+      triggerMobileDoubleTapSpace();
+      e.preventDefault();
+    } else {
+      lastTapAt = now;
+    }
+    return;
+  }
   if (ax > ay) playerMoveFromKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft');
   else playerMoveFromKey(dy > 0 ? 'ArrowDown' : 'ArrowUp');
   e.preventDefault();
@@ -3099,7 +3131,7 @@ function animate() {
             voidUiEl.classList.add('void-full');
             if (!tutorialSeen.voidFull) {
               tutorialSeen.voidFull = true;
-              showGuide('voidFull', 'Heat Death Ready', 'Press Space to enter the Heat Death - Collect colors to score!', { keys: false, hint: 'PRESS SPACE TO CONTINUE', focusVoid: true, focusHole: true });
+              showGuide('voidFull', 'Heat Death Ready', 'Press Space to enter the Heat Death - Collect colors to score!', { keys: false, hint: 'Or Double click on your mobile', focusVoid: true, focusHole: true });
             }
           }
         }
