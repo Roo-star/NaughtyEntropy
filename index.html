@@ -168,12 +168,25 @@ canvas { display: block; }
 }
 #bestscore-line { font-size: 18px; margin-top: 10px; color: #66ffff; letter-spacing: 1px; }
 #start-screen {
-  position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 130; display: flex; flex-direction: column; align-items: center; justify-content: center;
   overflow: hidden; background:
     radial-gradient(circle at 50% 45%, rgba(0,255,220,0.18), transparent 26%),
     radial-gradient(circle at 62% 54%, rgba(170,68,255,0.2), transparent 32%),
     linear-gradient(180deg, rgba(0,0,0,0.78), rgba(3,0,18,0.92));
   backdrop-filter: blur(5px);
+}
+#start-screen .start-smoke {
+  position: absolute; inset: -16%; pointer-events: none; opacity: 0.44;
+  background:
+    radial-gradient(ellipse at 34% 48%, rgba(0,255,220,0.26), transparent 34%),
+    radial-gradient(ellipse at 66% 56%, rgba(170,68,255,0.24), transparent 36%),
+    radial-gradient(ellipse at 50% 70%, rgba(255,216,107,0.12), transparent 34%);
+  filter: blur(42px) saturate(1.45);
+  animation: startSmokeDrift 11s ease-in-out infinite alternate;
+}
+#start-screen .start-smoke.alt {
+  opacity: 0.28; filter: blur(68px) saturate(1.9);
+  animation-duration: 16s; animation-direction: alternate-reverse;
 }
 #start-screen::before,
 #start-screen::after {
@@ -189,23 +202,27 @@ canvas { display: block; }
   50% { transform: rotate(180deg) scale(1.08); }
   to { transform: rotate(360deg) scale(0.92); }
 }
+@keyframes startSmokeDrift {
+  from { transform: translate3d(-3%, 2%, 0) rotate(-4deg) scale(1); }
+  to { transform: translate3d(4%, -3%, 0) rotate(5deg) scale(1.08); }
+}
 #start-card {
-  position: relative; z-index: 1; width: min(620px, 88vw); padding: 42px 34px; text-align: center;
-  background: linear-gradient(135deg, rgba(0,24,32,0.78), rgba(40,0,54,0.68));
+  position: relative; z-index: 1; width: min(360px, 78vw); padding: 18px 22px; text-align: center;
+  margin-top: 28px;
+  background: linear-gradient(135deg, rgba(0,24,32,0.52), rgba(40,0,54,0.42));
   border: 1px solid rgba(0,255,220,0.48); border-radius: 22px;
-  box-shadow: 0 0 70px rgba(0,255,220,0.28), 0 0 120px rgba(170,68,255,0.22), inset 0 0 42px rgba(255,255,255,0.07);
+  box-shadow: 0 0 70px rgba(0,255,220,0.24), 0 0 120px rgba(170,68,255,0.2), inset 0 0 36px rgba(255,255,255,0.05);
+  backdrop-filter: blur(9px);
 }
 #start-title {
-  font-size: clamp(42px, 9vw, 78px); line-height: 0.95; letter-spacing: 5px; color: #f7ffff;
-  text-transform: uppercase; text-shadow: 0 0 18px rgba(0,255,220,0.95), 0 0 58px rgba(170,68,255,0.72);
-}
-#start-subtitle {
-  margin: 18px auto 30px; max-width: 460px; color: rgba(234,255,255,0.72);
-  letter-spacing: 3px; font-size: 13px; text-transform: uppercase;
+  position: relative; z-index: 1; text-align: center;
+  font-size: clamp(52px, 11vw, 112px); line-height: 0.9; letter-spacing: 7px; color: #f7ffff;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(0,255,220,1), 0 0 58px rgba(170,68,255,0.82), 0 0 110px rgba(255,216,107,0.3);
 }
 #start-button {
-  font-family: inherit; font-size: 20px; letter-spacing: 5px; color: #001014; cursor: pointer;
-  padding: 15px 34px; border: 0; border-radius: 999px;
+  font-family: inherit; font-size: 22px; letter-spacing: 6px; color: #001014; cursor: pointer;
+  width: 100%; padding: 16px 34px; border: 0; border-radius: 999px;
   background: linear-gradient(90deg, #00ffcc, #ffd86b);
   box-shadow: 0 0 28px rgba(0,255,220,0.72), 0 0 58px rgba(255,216,107,0.24);
 }
@@ -215,10 +232,11 @@ canvas { display: block; }
 <body>
 <div id="cyber-overlay" aria-hidden="true"></div>
 <div id="start-screen">
+  <div class="start-smoke"></div>
+  <div class="start-smoke alt"></div>
+  <div id="start-title">Naughty Entropy</div>
   <div id="start-card">
-    <div id="start-title">Naughty Entropy</div>
-    <div id="start-subtitle">Glide the golden signal through smoke, noise, and heat death.</div>
-    <button id="start-button" type="button">遊戲開始</button>
+    <button id="start-button" type="button">Start</button>
   </div>
 </div>
 <div id="ui"><div id="level">Lv.1</div><div id="score">0</div><div id="lives">♥♥♥</div></div>
