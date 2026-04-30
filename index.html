@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Naughty Entropy · Alpha2</title>
+<title>Naughty Entropy · alpha3</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -290,7 +290,7 @@ canvas { display: block; }
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 
-const GAME_VERSION = 'Alpha2';
+const GAME_VERSION = 'alpha3';
 if (typeof globalThis !== 'undefined') {
   globalThis.GRID_TUNNEL_VERSION = GAME_VERSION;
 }
@@ -443,12 +443,11 @@ function isMobileViewport() {
 function applyViewportCamera() {
   const mobile = isMobileViewport();
   const aspect = window.innerWidth / window.innerHeight;
-  camera.fov = mobile ? 104 : 75;
-  // Portrait screens need extra horizontal projection room; z-only changes are too subtle here.
-  camera.aspect = mobile ? aspect * 1.85 : aspect;
-  camera.zoom = mobile ? 0.72 : 1;
-  camera.position.set(0, 0, mobile ? 4.2 : 2);
-  camera.lookAt(0, 0, mobile ? -13 : -10);
+  camera.fov = mobile ? 90 : 75;
+  camera.aspect = aspect;
+  camera.zoom = mobile ? 0.86 : 1;
+  camera.position.set(0, 0, mobile ? 3.1 : 2);
+  camera.lookAt(0, 0, mobile ? -11.5 : -10);
   camera.updateProjectionMatrix();
 }
 applyViewportCamera();
@@ -465,20 +464,381 @@ const frameMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: tru
 const cubeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
 const cubeMatFade = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true });
 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
-/** 與白方塊同結構的線框+點陣；不寫深度，讓白方塊（後繪、寫深度）在重疊處必定蓋過玩家 */
-const playerWireMat = new THREE.MeshBasicMaterial({
-  color: 0xffd700,
-  wireframe: true,
-  transparent: false,
-  depthWrite: false,
-});
-const playerDotMat = new THREE.MeshBasicMaterial({
-  color: 0xffd700,
-  wireframe: true,
-  transparent: true,
-  opacity: 0.4,
-  depthWrite: false,
-});
+const oilCubeUniforms = [];
+function createOilMetalCubeMaterial(seed = Math.random() * 1000) {
+  const uniforms = {
+    uTime: { value: 0 },
+    uOpacity: { value: 1 },
+    uSeed: { value: seed },
+  };
+  oilCubeUniforms.push(uniforms);
+  return new THREE.ShaderMaterial({
+    uniforms,
+    transparent: true,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
+    vertexShader: `
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vPosW = worldPos.xyz;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vViewW = normalize(cameraPosition - worldPos.xyz);
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform float uTime;
+      uniform float uOpacity;
+      uniform float uSeed;
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        float a = hash21(i);
+        float b = hash21(i + vec2(1.0, 0.0));
+        float c = hash21(i + vec2(0.0, 1.0));
+        float d = hash21(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float amp = 0.5;
+        mat2 m = mat2(1.62, 1.12, -1.12, 1.62);
+        for (int i = 0; i < 5; i++) {
+          v += amp * noise(p);
+          p = m * p + 0.17;
+          amp *= 0.52;
+        }
+        return v;
+      }
+
+      vec3 subtleFilm(float x) {
+        vec3 cool = vec3(0.72, 0.86, 1.0);
+        vec3 warm = vec3(1.0, 0.9, 0.72);
+        vec3 pearl = vec3(0.92, 0.96, 1.0);
+        return mix(pearl, mix(cool, warm, smoothstep(0.2, 0.85, x)), 0.18);
+      }
+
+      void main() {
+        vec3 n = normalize(vNormalW);
+        vec3 v = normalize(vViewW);
+        float t = uTime;
+        float seed = uSeed * 0.013;
+
+        vec2 p = vUv * 2.0 - 1.0;
+        float rot = t * 0.17 + seed;
+        vec2 pr = vec2(
+          p.x * cos(rot) - p.y * sin(rot),
+          p.x * sin(rot) + p.y * cos(rot)
+        );
+
+        vec2 flowA = vec2(
+          fbm(pr * 2.1 + vec2(t * 0.08, seed)),
+          fbm(pr * 2.1 + vec2(seed * 1.7, -t * 0.07))
+        );
+        vec2 flowB = vec2(
+          fbm(pr * 4.4 + flowA * 2.2 + vec2(-t * 0.11, seed * 0.4)),
+          fbm(pr * 4.0 - flowA * 1.8 + vec2(seed, t * 0.09))
+        );
+        vec2 warped = pr + (flowA - 0.5) * 0.8 + (flowB - 0.5) * 0.42;
+        float film = fbm(warped * 7.2 + vec2(t * 0.055, -t * 0.04));
+        float ribbon = smoothstep(0.48, 0.68, film) - smoothstep(0.76, 0.94, film);
+
+        float ndv = clamp(dot(n, v), 0.0, 1.0);
+        float fresnel = pow(1.0 - ndv, 4.2);
+        float schlick = 0.72 + (1.0 - 0.72) * fresnel;
+        float faceLight = pow(max(dot(n, normalize(vec3(-0.35, 0.55, 0.76))), 0.0), 1.35);
+        float razorSpec = pow(max(dot(reflect(-normalize(vec3(-0.45, 0.62, 0.64)), n), v), 0.0), 34.0);
+        float edgeLine = smoothstep(0.72, 0.98, max(abs(p.x), abs(p.y)));
+
+        float roundedRim = smoothstep(0.62, 0.98, max(abs(p.x), abs(p.y)));
+        vec3 obsidian = vec3(0.003, 0.0045, 0.007);
+        vec3 graphite = vec3(0.022, 0.026, 0.032);
+        vec3 silver = vec3(0.9, 0.94, 0.96);
+        vec3 liquidSilver = mix(vec3(0.66, 0.7, 0.74), silver, 0.64 + ribbon * 0.36);
+        liquidSilver *= mix(vec3(1.0), subtleFilm(film), 0.12);
+
+        vec3 color = mix(obsidian, graphite, faceLight * 0.55);
+        color = mix(color, liquidSilver, 0.26 + ribbon * 0.54 + fresnel * 0.48);
+        color += silver * schlick * (0.26 + 0.64 * fresnel);
+        color += silver * razorSpec * 1.15;
+        color += edgeLine * silver * (0.34 + fresnel * 0.5);
+        color = mix(color, silver, roundedRim * 0.16);
+
+        gl_FragColor = vec4(color, uOpacity);
+      }
+    `,
+  });
+}
+function createPrismaticCubeMaterial(seed = Math.random() * 1000) {
+  const uniforms = {
+    uTime: { value: 0 },
+    uOpacity: { value: 1 },
+    uSeed: { value: seed },
+  };
+  oilCubeUniforms.push(uniforms);
+  return new THREE.ShaderMaterial({
+    uniforms,
+    transparent: false,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    blending: THREE.NormalBlending,
+    vertexShader: `
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vPosW = worldPos.xyz;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vViewW = normalize(cameraPosition - worldPos.xyz);
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform float uTime;
+      uniform float uOpacity;
+      uniform float uSeed;
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+      float snoise(vec3 v) {
+        const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i = floor(v + dot(v, C.yyy));
+        vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy);
+        vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+        i = mod(i, 289.0);
+        vec4 p = permute(permute(permute(
+          i.z + vec4(0.0, i1.z, i2.z, 1.0))
+          + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+          + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857;
+        vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ * ns.x + ns.yyyy;
+        vec4 y = y_ * ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+        vec4 b0 = vec4(x.xy, y.xy);
+        vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0) * 2.0 + 1.0;
+        vec4 s1 = floor(b1) * 2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+        vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+        vec3 p0 = vec3(a0.xy, h.x);
+        vec3 p1 = vec3(a0.zw, h.y);
+        vec3 p2 = vec3(a1.xy, h.z);
+        vec3 p3 = vec3(a1.zw, h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+      }
+
+      vec3 prism(float x) {
+        vec3 cyan = vec3(0.0, 0.95, 1.0);
+        vec3 electricBlue = vec3(0.0, 0.16, 1.0);
+        vec3 violet = vec3(0.64, 0.0, 1.0);
+        vec3 magenta = vec3(1.0, 0.0, 0.82);
+        vec3 lime = vec3(0.18, 1.0, 0.32);
+        vec3 c = mix(cyan, electricBlue, smoothstep(0.0, 0.22, x));
+        c = mix(c, violet, smoothstep(0.2, 0.48, x));
+        c = mix(c, magenta, smoothstep(0.46, 0.74, x));
+        c = mix(c, lime, smoothstep(0.72, 1.0, x));
+        return c;
+      }
+
+      void main() {
+        vec3 n = normalize(vNormalW);
+        vec3 v = normalize(vViewW);
+        float t = uTime * 0.16;
+        float seed = uSeed * 0.017;
+        vec2 uv = vUv * 2.0 - 1.0;
+        float swirlAngle = t * 0.62 + seed + length(uv) * 1.4;
+        mat2 spin = mat2(cos(swirlAngle), -sin(swirlAngle), sin(swirlAngle), cos(swirlAngle));
+        vec2 spunUv = spin * uv;
+        vec3 p = vec3(spunUv, dot(vPosW, vec3(0.31, 0.23, 0.17)));
+        vec3 q = vec3(
+          snoise(p * 0.95 + vec3(t * 0.34, seed, -t * 0.24)),
+          snoise(p * 1.15 + vec3(seed, -t * 0.28, t * 0.32)),
+          snoise(p * 0.85 + vec3(-t * 0.2, t * 0.38, seed))
+        );
+        vec3 r = p + q * 1.65;
+        float broadNoise = snoise(r * 1.65 + vec3(t * 0.42, seed, -t * 0.28));
+        float vein = sin((r.x * 1.8 + r.y * 1.15 + broadNoise * 2.4 + t * 1.15) * 3.14159);
+        float ribbon = smoothstep(-0.18, 0.76, vein);
+        float ribbonCore = smoothstep(0.52, 0.94, vein);
+        float flow = fract(0.5 + 0.5 * vein + broadNoise * 0.18 + t * 0.045);
+        float filmBand = max(ribbon * 0.72, ribbonCore);
+
+        float ndv = clamp(dot(n, v), 0.0, 1.0);
+        float fresnel = pow(1.0 - ndv, 1.85);
+        float rim = pow(1.0 - ndv, 3.4);
+        float edge = smoothstep(0.62, 0.98, max(abs(uv.x), abs(uv.y)));
+        float spec = pow(max(dot(reflect(-normalize(vec3(-0.45, 0.55, 0.72)), n), v), 0.0), 96.0);
+        float broadSpec = pow(max(dot(reflect(-normalize(vec3(0.24, -0.32, 0.92)), n), v), 0.0), 20.0);
+        vec3 deepGlass = vec3(0.015, 0.018, 0.04);
+        vec3 chrome = vec3(0.72, 0.9, 1.0) * (0.22 + 0.78 * fresnel);
+        vec3 rainbow = prism(flow);
+        vec3 color = mix(deepGlass, rainbow, clamp(0.45 + filmBand * 0.5 + fresnel * 0.38, 0.0, 0.96));
+        color += chrome * 0.38;
+        color += rainbow * (edge * 1.35 + rim * 1.45 + ribbonCore * 0.75);
+        color += vec3(1.0) * spec * 1.9;
+        color += vec3(0.52, 0.9, 1.0) * broadSpec * 0.62;
+        color = clamp(color, 0.0, 2.2);
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+  });
+}
+/** 與白方塊同結構的彩色流體立方體；不寫深度，讓白方塊在重疊處蓋過玩家 */
+const playerWireMat = createPrismaticCubeMaterial(17.0);
+const playerDotMat = createPrismaticCubeMaterial(137.0);
+
+function createScoreColorMaterial(baseColor, seed = Math.random() * 1000) {
+  const uniforms = {
+    uTime: { value: 0 },
+    uOpacity: { value: 1 },
+    uSeed: { value: seed },
+    uBaseColor: { value: baseColor.clone() },
+  };
+  oilCubeUniforms.push(uniforms);
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vPosW = worldPos.xyz;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vViewW = normalize(cameraPosition - worldPos.xyz);
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform float uTime;
+      uniform float uOpacity;
+      uniform float uSeed;
+      uniform vec3 uBaseColor;
+      varying vec3 vNormalW;
+      varying vec3 vViewW;
+      varying vec3 vPosW;
+      varying vec2 vUv;
+
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 345.45));
+        p += dot(p, p + 34.23);
+        return fract(p.x * p.y);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        float a = hash21(i);
+        float b = hash21(i + vec2(1.0, 0.0));
+        float c = hash21(i + vec2(0.0, 1.0));
+        float d = hash21(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float amp = 0.5;
+        mat2 m = mat2(1.6, 1.1, -1.1, 1.6);
+        for (int i = 0; i < 5; i++) {
+          v += amp * noise(p);
+          p = m * p + 0.13;
+          amp *= 0.52;
+        }
+        return v;
+      }
+
+      void main() {
+        vec3 n = normalize(vNormalW);
+        vec3 v = normalize(vViewW);
+        float t = uTime * 0.16;
+        float seed = uSeed * 0.011;
+        vec2 uv = vUv * 2.0 - 1.0;
+        float spin = t * 0.72 + seed + length(uv) * 1.8;
+        mat2 rot = mat2(cos(spin), -sin(spin), sin(spin), cos(spin));
+        vec2 p = rot * uv;
+        vec2 warp = vec2(
+          fbm(p * 1.4 + vec2(t * 0.32, seed)),
+          fbm(p * 1.7 + vec2(seed, -t * 0.24))
+        );
+        vec2 q = p + (warp - 0.5) * 1.15;
+        float river = sin((q.x * 2.0 + q.y * 1.25 + fbm(q * 2.1) * 3.1 + t * 1.2) * 3.14159);
+        float ribbon = smoothstep(-0.22, 0.82, river);
+        float core = smoothstep(0.5, 0.95, river);
+        float fresnel = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.25);
+        float spec = pow(max(dot(reflect(-normalize(vec3(-0.4, 0.6, 0.7)), n), v), 0.0), 54.0);
+        float edge = smoothstep(0.64, 0.98, max(abs(uv.x), abs(uv.y)));
+        vec3 hueA = normalize(uBaseColor + vec3(0.06, 0.02, 0.12));
+        vec3 hueB = normalize(uBaseColor.bgr + vec3(0.08, 0.12, 0.04));
+        vec3 hueC = normalize(uBaseColor.gbr + vec3(0.18, 0.05, 0.08));
+        vec3 film = mix(hueA, hueB, smoothstep(0.0, 0.55, ribbon));
+        film = mix(film, hueC, smoothstep(0.48, 1.0, core));
+        vec3 base = mix(uBaseColor * 0.32, uBaseColor * 1.55, 0.58 + spec * 0.35);
+        vec3 color = mix(base, film * 1.8, clamp(ribbon * 0.72 + fresnel * 0.55, 0.0, 0.95));
+        color += film * (edge * 1.1 + core * 0.7 + fresnel * 0.65);
+        color += vec3(1.0) * spec * 1.25;
+        gl_FragColor = vec4(color, uOpacity);
+      }
+    `,
+  });
+  mat.color = baseColor.clone();
+  return mat;
+}
 
 /** 紅色慢速方塊材質 */
 const redWireMat = new THREE.MeshBasicMaterial({
@@ -1022,12 +1382,47 @@ function updateFx(dt) {
 }
 
 // ── Dotted cube factory ──
-const cubeGeo = new THREE.BoxGeometry(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE);
+function createRoundedBoxGeometry(size, radius = 0.08, segments = 6) {
+  const geo = new THREE.BoxGeometry(size, size, size, segments, segments, segments);
+  const pos = geo.attributes.position;
+  const half = size * 0.5;
+  const inner = half - radius;
+  const v = new THREE.Vector3();
+  const q = new THREE.Vector3();
+  const d = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    q.set(
+      Math.max(-inner, Math.min(inner, v.x)),
+      Math.max(-inner, Math.min(inner, v.y)),
+      Math.max(-inner, Math.min(inner, v.z))
+    );
+    d.copy(v).sub(q);
+    if (d.lengthSq() > 1e-8) {
+      d.normalize().multiplyScalar(radius);
+      v.copy(q).add(d);
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+const cubeGeo = createRoundedBoxGeometry(CUBE_EDGE, CUBE_EDGE * 0.085, 8);
 const dotGeoW = new THREE.BoxGeometry(0.1, 0.1, 0.1);
 
-function createDottedCube(material, dMat) {
+function createDottedCube(material, dMat, opts = {}) {
+  const includeDots = opts.includeDots !== false;
+  const includeFrame = opts.includeFrame === true;
   const group = new THREE.Group();
   group.add(new THREE.Mesh(cubeGeo, material));
+  if (includeFrame) {
+    const edgeGeo = new THREE.EdgesGeometry(cubeGeo);
+    const frameMat = dMat || dotMat;
+    const frame = new THREE.LineSegments(edgeGeo, frameMat);
+    frame.renderOrder = 2;
+    group.add(frame);
+  }
+  if (!includeDots) return group;
   const half = CUBE_EDGE / 2 + 0.01;
   const sp = CUBE_EDGE / 5;
   const faces = [
@@ -1100,24 +1495,27 @@ class RollingCube {
       // 隨機 HSL 鮮豔色彩
       const hue = Math.random();
       const rbColor = new THREE.Color().setHSL(hue, 1.0, 0.65);
-      this.cubeFadeMat = new THREE.MeshBasicMaterial({
-        color: rbColor, wireframe: true, transparent: true, opacity: 0.95, depthWrite: false,
-      });
+      this.fxColor = rbColor.clone();
+      this.cubeFadeMat = createScoreColorMaterial(rbColor, Math.random() * 1000);
       this.dotFadeMat = new THREE.MeshBasicMaterial({
         color: rbColor, wireframe: true, transparent: true, opacity: 0.6, depthWrite: false,
       });
     } else if (this.isPickup) {
-      this.cubeFadeMat = playerWireMat.clone();
-      this.cubeFadeMat.transparent = true;
-      this.dotFadeMat = playerDotMat.clone();
+      this.cubeFadeMat = createPrismaticCubeMaterial(Math.random() * 1000);
+      this.dotFadeMat = createPrismaticCubeMaterial(Math.random() * 1000);
     } else if (this.isSlowdown) {
       this.cubeFadeMat = redWireMat.clone();
       this.dotFadeMat = redDotMat.clone();
     } else {
-      this.cubeFadeMat = cubeMatFade.clone();
+      this.cubeFadeMat = createOilMetalCubeMaterial(Math.random() * 1000);
       this.dotFadeMat = dotMat.clone();
+      this.dotFadeMat.color.setHex(0x9fefff);
+      this.dotFadeMat.opacity = 0.26;
     }
-    this.mesh = createDottedCube(this.cubeFadeMat, this.dotFadeMat);
+    this.mesh = createDottedCube(this.cubeFadeMat, this.dotFadeMat, {
+      includeDots: true,
+      includeFrame: false,
+    });
     this.pivot = new THREE.Group();
     this.pivot.add(this.mesh);
     scene.add(this.pivot);
@@ -1134,13 +1532,13 @@ class RollingCube {
       useCustomTrail ? gridMat.clone() : gridMat
     );
     if (this.isPickup) {
-      this.trailLine.material.color.setHex(0xffcc33);
+      this.trailLine.material.color.setHex(0x66ffff);
       this.trailLine.material.opacity = 0.42;
     } else if (this.isSlowdown) {
       this.trailLine.material.color.setHex(0xff4444);
       this.trailLine.material.opacity = 0.42;
     } else if (this.isRainbow) {
-      this.trailLine.material.color.copy(this.cubeFadeMat.color);
+      this.trailLine.material.color.copy(this.fxColor || this.cubeFadeMat.color || new THREE.Color(0x66ffff));
       this.trailLine.material.opacity = 0.55;
     }
     this.pivot.renderOrder = 1;
@@ -1278,10 +1676,22 @@ class RollingCube {
       scale *= 1 - u * 0.35;
     }
 
-    this.cubeFadeMat.opacity = Math.max(0, op);
-    this.cubeFadeMat.transparent = op < 0.999;
-    this.cubeFadeMat.depthWrite = op >= 0.999;
+    if (this.isPickup) {
+      this.cubeFadeMat.depthWrite = true;
+      this.cubeFadeMat.transparent = false;
+    } else if (this.cubeFadeMat.uniforms && this.cubeFadeMat.uniforms.uOpacity) {
+      this.cubeFadeMat.uniforms.uOpacity.value = Math.max(0, op);
+      this.cubeFadeMat.transparent = true;
+      this.cubeFadeMat.depthWrite = op >= 0.999;
+    } else {
+      this.cubeFadeMat.opacity = Math.max(0, op);
+      this.cubeFadeMat.transparent = op < 0.999;
+      this.cubeFadeMat.depthWrite = op >= 0.999;
+    }
     this.dotFadeMat.opacity = 0.4 * Math.max(0, op);
+    if (this.dotFadeMat.uniforms && this.dotFadeMat.uniforms.uOpacity) {
+      this.dotFadeMat.uniforms.uOpacity.value = Math.max(0, op);
+    }
     this.dotFadeMat.transparent = true;
     this.dotFadeMat.depthWrite = false;
     this.pivot.scale.setScalar(scale);
@@ -1343,8 +1753,18 @@ class RollingCube {
       const op = Math.max(0, 1 - t);
       const sc = 1 + t * 2.5;
       this.pivot.scale.setScalar(sc);
-      this.cubeFadeMat.opacity = op;
-      this.dotFadeMat.opacity = op * 0.4;
+      if (this.isPickup) {
+        this.cubeFadeMat.transparent = false;
+      } else if (this.cubeFadeMat.uniforms && this.cubeFadeMat.uniforms.uOpacity) {
+        this.cubeFadeMat.uniforms.uOpacity.value = op;
+      } else {
+        this.cubeFadeMat.opacity = op;
+      }
+      if (this.dotFadeMat.uniforms && this.dotFadeMat.uniforms.uOpacity) {
+        this.dotFadeMat.uniforms.uOpacity.value = op;
+      } else {
+        this.dotFadeMat.opacity = op * 0.4;
+      }
       this.cubeFadeMat.transparent = true;
       this.pivot.visible = op > 0.01;
       // 讓方塊向外飛
@@ -2141,7 +2561,7 @@ function createPlayerCube() {
   const s = PLAYER_CUBE_SIZE;
   const hg = s * 0.5;
   const group = new THREE.Group();
-  const mesh = createDottedCube(playerWireMat, playerDotMat);
+  const mesh = createDottedCube(playerWireMat, playerDotMat, { includeDots: true, includeFrame: false });
   mesh.position.z = -hg;
   mesh.traverse((ch) => {
     if (ch.isMesh) ch.renderOrder = -2;
@@ -2712,11 +3132,11 @@ function tryCollectSpecials() {
     const wc = cube.getWorldCenter();
     if (cube.isRainbow) {
       addScore(1000, '+1000', '#66ffff');
-      spawnParticles(wc, cube.cubeFadeMat.color || new THREE.Color(0x66ffff), 46, 4.2);
+      spawnParticles(wc, cube.fxColor || cube.cubeFadeMat.color || new THREE.Color(0x66ffff), 46, 4.2);
       playScoreSound();
     } else if (cube.isPickup) {
-      addScore(5000, '+5000', '#ffd700');
-      spawnParticles(wc, new THREE.Color(0xffd700), 62, 5.0);
+      addScore(5000, '+5000', '#66ffff');
+      spawnParticles(wc, new THREE.Color(0x66ffff), 62, 5.0);
       playScoreSound();
     } else if (cube.isSlowdown) {
       globalSlowUntil = time + GLOBAL_SLOW_DURATION;
@@ -3056,7 +3476,7 @@ function animate() {
       for (const cube of rollingCubes) {
         if (!tutorialSeen.yellow && cube.isPickup && cube.delay <= 1) {
           tutorialSeen.yellow = true;
-          showGuide('yellow', 'Yellow Cube', 'Hit yellow cubes for bonus points.', { keys: false });
+          showGuide('yellow', 'Color Cube', 'Hit color cubes for bonus points.', { keys: false });
           break;
         }
         if (!tutorialSeen.red && cube.isSlowdown && cube.delay <= 1) {
@@ -3081,7 +3501,7 @@ function animate() {
 
         if (!tutorialSeen.yellow && cube.isPickup) {
           tutorialSeen.yellow = true;
-          showGuide('yellow', 'Yellow Cube', 'Hit yellow cubes for bonus points.', { keys: false });
+          showGuide('yellow', 'Color Cube', 'Hit color cubes for bonus points.', { keys: false });
         } else if (!tutorialSeen.red && cube.isSlowdown) {
           tutorialSeen.red = true;
           showGuide('red', 'Red Cube', 'Hit red cubes for extra time.', { keys: false });
@@ -3217,6 +3637,9 @@ function animate() {
   }
 
   const elapsed = clock.getElapsedTime();
+  for (const uniforms of oilCubeUniforms) {
+    uniforms.uTime.value = elapsed;
+  }
   updateCyberPulse(elapsed);
   updateHoleVisual(elapsed);
   renderer.render(scene, camera);
